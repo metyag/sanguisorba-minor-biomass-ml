@@ -1,41 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-19 — Hybrid strategies: bottom-up aggregation, data augmentation, and blending.
-
-Script 18 searched over estimators, data views and target transforms while
-holding the *strategy* fixed: one row per genotype x year cell, fitted directly.
-This script varies the strategy itself.
-
-BOTTOM-UP.  A cell mean can also be predicted from below.  Fit the model to the
-individual plants of the training cells, which is ten times as many rows, then
-predict each plant of the held-out cell and average.  In deployment this is the
-natural procedure, because the traits of the ten plants are measured before any
-plant is cut; only the weights are unknown.  Two variants are separated: the
-mean of the predictions, and the prediction from the mean traits.  They differ
-whenever the model is non-linear, and the gap between them measures how much
-that curvature costs.
-
-Caveat, stated here because it bears on how the bottom-up result should be
-read: script 18 established that the nine first records of each cell are
-ordered rather than independently sampled.  A plant-level fit therefore partly
-learns that ordering.  The between-cell signal, which is what the held-out
-prediction depends on, is unaffected by any within-cell ordering, but the
-plant-level residual variance is not a genuine measure of plant-to-plant
-variation and is not interpreted as one.
-
-AUGMENTATION.  Six schemes generate additional training rows from the training
-cells only: bootstrap resampling of a cell's plants, resampling seven of ten,
-leave-one-plant-out jackknife means, mixup, the regression-specific C-mixup
-that restricts interpolation to cells of similar yield, and Gaussian noise
-scaled by each cell's own standard error.  None of them adds information; all
-of them change the effective regularisation, which at n = 62 can matter.
-
-BLENDING.  Equal-weight and non-negative-least-squares combinations of the
-strongest candidates, with the blending weights estimated on an inner grouped
-cross-validation of the training cells so that they never see a held-out cell.
-
-Outputs (results/tables/): 19_hybrid.csv, 19_blends.csv, 19_summary.json
-"""
 import json
 import os
 import sys
@@ -71,7 +33,6 @@ DESIGNS = {
     "LOYO": GroupOut(ctx.g_year),
 }
 
-# Estimators cheap enough to refit 62 times on 610 plant rows.
 FAST = {"Linear", "Ridge", "RidgeCV", "Huber", "Huber (eps 1.1)", "Huber (eps 2.0)",
         "Bayesian Ridge", "ARD Regression", "TheilSen", "Quantile (median)", "OMP",
         "LassoCV", "ElasticNetCV", "SVR (linear)", "PLS (2 comp)", "PLS (3 comp)",
@@ -86,17 +47,12 @@ if not os.path.exists(sweep_path):
 sw = pd.read_csv(sweep_path)
 sw = sw[(sw.Status == "ok") & (sw.Model.isin(FAST))].sort_values("pooled_R2",
                                                                 ascending=False)
-# one configuration per estimator, so the base set is diverse rather than ten
-# near-copies of the same winner
 BASE = [(r.Model, r.View, r.Target) for r in sw.groupby("Model").head(1)
         .sort_values("pooled_R2", ascending=False).head(10).itertuples()]
 print("\nBase configurations taken from the script-18 sweep:")
 for b in BASE:
     print(f"   {b[0]:22} {b[1]:12} {b[2]}")
 
-# ===========================================================================
-# 1. STRATEGY COMPARISON — direct vs bottom-up, under every design
-# ===========================================================================
 print("\n" + "=" * 100)
 print("1. DIRECT vs BOTTOM-UP")
 print("=" * 100, flush=True)
@@ -137,9 +93,6 @@ for d in DESIGNS:
     print(piv.to_string(float_format=lambda v: f"{v:.4f}"))
     print()
 
-# ===========================================================================
-# 2. AUGMENTATION
-# ===========================================================================
 print("=" * 100)
 print("2. AUGMENTATION SCHEMES")
 print("=" * 100, flush=True)
@@ -185,9 +138,6 @@ for d in ("grouped 5-fold", "LOCO"):
 allrows = pd.concat([strat, aug], ignore_index=True)
 allrows.to_csv(os.path.join(TAB_DIR, "19_hybrid.csv"), index=False)
 
-# ===========================================================================
-# 3. BLENDS
-# ===========================================================================
 print("=" * 100)
 print("3. BLENDS")
 print("=" * 100, flush=True)
@@ -197,7 +147,6 @@ loco = strat[(strat.Design == "LOCO") & (strat.Status == "ok")] \
 loco_aug = aug[(aug.Design == "LOCO") & (aug.Status == "ok")] \
     .sort_values("pooled_R2", ascending=False)
 
-# members: the best candidate of each distinct family, plus the best bottom-up
 members = []
 seen_fam = set()
 for r in loco.itertuples():
@@ -242,9 +191,6 @@ print(f"\n  {len(bl)} blends in {time.time()-t0:.0f} s\n")
 print(bl[["Blend", "Design", "Status", "pooled_R2", "pooled_MAE", "pooled_MAPE",
           "spearman"]].to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# SUMMARY
-# ===========================================================================
 best_rows = []
 for src, name in ((strat, "strategy"), (aug, "augmentation")):
     s = src[(src.Design == "LOCO") & (src.Status == "ok")]

@@ -1,19 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-05 — Regenerate every figure to publication standard.
-
-The Editor reported that in the submitted version the figure text was
-unreadable, headings were rendered in a blue tone that made them invisible, and
-axis annotations overlapped. All figures are therefore redrawn with:
-  * black text on a white background, no coloured headings
-  * minimum font size 11 pt (titles 13 pt, tick labels 11 pt)
-  * a colour-blind-safe palette (Okabe-Ito) with black edges
-  * no annotation drawn over data, titles or axes (checked on the rendered image)
-  * English labels throughout (the original figures were labelled in Turkish)
-  * 400 dpi TIFF/PNG output
-
-Requires 02 and 03 to have been run first.
-"""
 import sys, os, json, warnings
 import numpy as np
 import pandas as pd
@@ -31,9 +15,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from common_setup import (load_data, make_pipeline, make_preprocessor, SEED, FIG_DIR, TAB_DIR,
                           FULL_FEATURES, MORPH_FEATURES, TARGET_EN, YEAR, GENOTYPE)
 
-# ---------------------------------------------------------------
-# Global style — readability first
-# ---------------------------------------------------------------
 plt.rcParams.update({
     "figure.facecolor": "white", "axes.facecolor": "white", "savefig.facecolor": "white",
     "font.family": "DejaVu Sans", "font.size": 12,
@@ -47,14 +28,12 @@ plt.rcParams.update({
     "savefig.bbox": "tight", "axes.grid": False,
 })
 
-# Okabe-Ito colour-blind-safe palette
 OI = {"blue": "#0072B2", "orange": "#E69F00", "green": "#009E73", "vermillion": "#D55E00",
       "sky": "#56B4E9", "yellow": "#F0E442", "purple": "#CC79A7", "grey": "#999999"}
 DESIGN_COLORS = {"A. Random 5-fold": OI["vermillion"], "B. GroupKFold (cell)": OI["blue"],
                  "C. Leave-one-genotype-out": OI["green"], "D. Leave-one-year-out": OI["purple"]}
 
 
-# Set SKIP_EXISTING=1 in the environment to regenerate only the missing figures.
 SKIP_EXISTING = os.environ.get("SKIP_EXISTING", "0") == "1"
 
 
@@ -63,15 +42,8 @@ def exists(name):
 
 
 def save(fig, name):
-    # A legend taken out of the layout with set_in_layout(False) is invisible to
-    # bbox_inches="tight", which then crops it out of the saved image: the legend
-    # of the forward-selection figures disappeared this way, leaving the 95 %
-    # threshold and minimum-feature-count lines unlabelled. Every legend is
-    # passed explicitly so that the saved bounding box has to contain it.
     ek = [ax.get_legend() for ax in fig.axes if ax.get_legend() is not None]
     ek += list(fig.legends)
-    # R2 (t24, F6-06): a Figure-level title is a fig.texts entry; with an explicit
-    # bbox_extra_artists it was cropped out of every saved image.
     ek += list(fig.texts)
     for ext in ("png", "tif"):
         p = os.path.join(FIG_DIR, f"{name}.{ext}")
@@ -81,25 +53,17 @@ def save(fig, name):
     print(f"  saved  {name}.png / .tif", flush=True)
 
 
-
-# ---------------------------------------------------------------
-# When SKIP_EXISTING=1, jump straight to the figures that are missing.
-# ---------------------------------------------------------------
 df, y, groups_cell, groups_geno, groups_year = load_data()
 BEST = ExtraTreesRegressor(n_estimators=800, random_state=SEED, n_jobs=-1)
 print("=" * 80)
 print("05 — FIGURE REGENERATION")
 print("=" * 80)
 
-# ===============================================================
-# FIGURE 2 (NEW) — Why random CV is optimistic: variance decomposition
-# ===============================================================
 print("\nFigure: hierarchical structure of the dataset")
 fig, ax = plt.subplots(1, 1, figsize=(7.6, 5.4))
 
 cell_means = df.groupby([YEAR, GENOTYPE])[TARGET_EN].mean()
 order = cell_means.sort_values().index
-# Ranks start at 1, so that the 62 cells read 1-62 on an axis that says so.
 pos = {c: i for i, c in enumerate(order, start=1)}
 xs = [pos[(r[YEAR], r[GENOTYPE])] for _, r in df.iterrows()]
 cols = [OI["blue"] if r[YEAR] == 1 else OI["orange"] for _, r in df.iterrows()]
@@ -116,15 +80,9 @@ ax.legend(handles=[Patch(facecolor=OI["blue"], label="Year 1 (2022)"),
           loc="upper left")
 ax.grid(alpha=0.25, linestyle=":")
 
-# Panel (b), which stacked the between- and within-group variance shares of the
-# three grouping factors, has been removed: those two shares are columns three
-# and four of Table 1, so the panel repeated the table exactly.
 fig.tight_layout()
 save(fig, "Figure_02_dataset_structure")
 
-# ===============================================================
-# FIGURE 3 (NEW) — Model performance under the four validation designs
-# ===============================================================
 print("\nFigure: model performance across validation designs")
 vm = pd.read_csv(os.path.join(TAB_DIR, "02_validation_matrix_full.csv"))
 vm = vm[vm["Status"] == "ok"]
@@ -143,13 +101,8 @@ for fs_key, fs_tag, fs_title in [
     xpos = np.arange(len(order))
     for i, d in enumerate(code2lab.values()):
         s = sub[sub.Design == d].set_index("Model").reindex(order)
-        # Error bars are shown only for the two five-fold designs, where a fold-wise
-        # SD is meaningful; under leave-one-genotype-out a per-fold R2 is unstable
-        # (see the metric convention in the Methods), so no bar is drawn.
         err = s["perfold_R2_sd"] if d.startswith(("A.", "B.")) else None
         if err is not None:
-            # The upper whisker is truncated at R2 = 1, as the caption states, so that
-            # no whisker runs through the frame and suggests a value above one.
             up = np.minimum(err.values, np.maximum(0.0, 1.0 - s["pooled_R2"].values))
             err = np.vstack([err.values, up])
         ax.bar(xpos + (i - 1.5) * w, s["pooled_R2"], w, yerr=err,
@@ -162,15 +115,11 @@ for fs_key, fs_tag, fs_title in [
     lo = min(-0.35, float(np.nanmin(sub["pooled_R2"])) - 0.1)
     ax.set_ylim(lo, 1.05)
     ax.set_title(f"Predictive performance under four validation designs\n{fs_title}")
-    # Outside the axes: at lower left it covered the end of a leave-one-year-out bar.
     ax.legend(loc="upper left", bbox_to_anchor=(1.005, 1.0), ncol=1)
     ax.grid(axis="y", alpha=0.25, linestyle=":")
     fig.tight_layout()
     save(fig, f"Figure_03_validation_designs_{fs_tag}")
 
-# ===============================================================
-# FIGURE 4 — Four metrics for the morphology-only model under grouped CV
-# ===============================================================
 print("\nFigure: four-metric comparison (morphology-only, grouped CV)")
 sub = vm[(vm["Feature set"].str.startswith("MORPH-ONLY")) &
          (vm["design_code"] == "groupcell")].sort_values("pooled_R2", ascending=False)
@@ -193,9 +142,6 @@ fig.suptitle("Model comparison — morphological traits only, GroupKFold by geno
 fig.tight_layout()
 save(fig, "Figure_04_four_metrics_morph_grouped")
 
-# ===============================================================
-# FIGURE 5 — Univariate R2 per feature, random vs grouped CV
-# ===============================================================
 print("\nFigure: univariate feature contribution")
 uni = pd.read_csv(os.path.join(TAB_DIR, "03_univariate_r2.csv"))
 piv = uni.pivot(index="Feature", columns="Design", values="R2_mean")
@@ -205,8 +151,6 @@ sd = sd.reindex(piv.index)
 fig, ax = plt.subplots(figsize=(11, 7))
 ypos = np.arange(len(piv))
 h = 0.38
-# R2 (t25, V5-01): the upper whisker is truncated at R2 = 1, as in Figure 3, so that no
-# whisker suggests a value above the attainable maximum.
 _ub = np.vstack([sd["B_groupcell"].values,
                  np.minimum(sd["B_groupcell"].values,
                             np.maximum(0.0, 1.0 - piv["B_groupcell"].values))])
@@ -221,19 +165,12 @@ ax.axvline(0, color="black", lw=1.1)
 ax.set_yticks(ypos); ax.set_yticklabels(piv.index)
 ax.set_xlabel("R$^2$ when the feature is used alone (mean $\\pm$ SD)")
 ax.set_title("Individual predictive contribution of each variable")
-# The legend sat over the two bars of the bottom row, which the Editor would
-# read as another illegible figure. The lower-left quadrant is empty on this
-# chart because only genotype and the two leaf traits reach far negative values.
 ax.legend(loc="lower left", framealpha=1.0)
 ax.grid(axis="x", alpha=0.25, linestyle=":")
 fig.tight_layout()
 save(fig, "Figure_05_univariate_r2")
 
-# ===============================================================
-# FIGURE 6 — Forward selection curves (the key clarification figure)
-# ===============================================================
 def _gosterge_alta(fig, axes):
-    """Place each panel legend just below that panel's x-axis label."""
     fig.canvas.draw()
     r = fig.canvas.get_renderer()
     for ax in axes:
@@ -257,8 +194,6 @@ for ax, (d, s, title, c) in zip(axes, panels):
                label=f"95% of maximum = {thr:.3f}")
     ax.axvline(mk, color=OI["purple"], ls=":", lw=1.8,
                label=f"Minimum feature count = {mk}")
-    # The traits are named on the x axis rather than written over the points, where
-    # they ran across the panel titles and the error bars.
     ax.set_xticks(sub["Step"])
     ax.set_xticklabels([f"{int(k)}. {n}" for k, n in zip(sub["Step"], sub["Added feature"])],
                        rotation=40, ha="right", fontsize=10)
@@ -270,14 +205,11 @@ for ax, (d, s, title, c) in zip(axes, panels):
     ax.set_ylim(min(0.0, _bot) - 0.05, _top + 0.08)
     ax.grid(alpha=0.25, linestyle=":")
     _leg = ax.legend(loc="upper center", ncol=1, fontsize=10, framealpha=1.0)
-    # Kept out of the layout, so that tight_layout does not shrink the panel to make
-    # room for it; it is placed below the axis label once the layout is fixed.
     _leg.set_in_layout(False)
 fig.tight_layout()
 _gosterge_alta(fig, axes)
 save(fig, "Figure_06_forward_selection")
 
-# Morphology-only forward selection
 fig, axes = plt.subplots(1, 2, figsize=(16, 6.6))
 panels = [("A_random", "MORPH", "(a) Random 5-fold CV, morphological traits only", OI["vermillion"]),
           ("B_groupcell", "MORPH", "(b) GroupKFold by cell, morphological traits only", OI["blue"])]
@@ -289,8 +221,6 @@ for ax, (d, s, title, c) in zip(axes, panels):
     thr = sub["95% threshold"].iloc[0]; mk = int(sub["Minimum feature count"].iloc[0])
     ax.axhline(thr, color=OI["green"], ls="--", lw=1.6, label=f"95% of maximum = {thr:.3f}")
     ax.axvline(mk, color=OI["purple"], ls=":", lw=1.8, label=f"Minimum feature count = {mk}")
-    # The traits are named on the x axis rather than written over the points, where
-    # they ran across the panel titles and the error bars.
     ax.set_xticks(sub["Step"])
     ax.set_xticklabels([f"{int(k)}. {n}" for k, n in zip(sub["Step"], sub["Added feature"])],
                        rotation=40, ha="right", fontsize=10)
@@ -302,16 +232,11 @@ for ax, (d, s, title, c) in zip(axes, panels):
     ax.set_ylim(min(0.0, _bot) - 0.05, _top + 0.08)
     ax.grid(alpha=0.25, linestyle=":")
     _leg = ax.legend(loc="upper center", ncol=1, fontsize=10, framealpha=1.0)
-    # Kept out of the layout, so that tight_layout does not shrink the panel to make
-    # room for it; it is placed below the axis label once the layout is fixed.
     _leg.set_in_layout(False)
 fig.tight_layout()
 _gosterge_alta(fig, axes)
 save(fig, "Figure_07_forward_selection_morph")
 
-# ===============================================================
-# FIGURE 8 — RF impurity vs permutation importance
-# ===============================================================
 print("\nFigure: feature importance")
 rf = pd.read_csv(os.path.join(TAB_DIR, "03_rf_importance.csv"))
 perm = pd.read_csv(os.path.join(TAB_DIR, "03_permutation_importance.csv"))
@@ -341,9 +266,6 @@ for ax in axes:
 fig.tight_layout()
 save(fig, "Figure_08_feature_importance")
 
-# ===============================================================
-# FIGURE 9 — Correlation matrix
-# ===============================================================
 print("\nFigure: correlation matrix")
 corr = pd.read_csv(os.path.join(TAB_DIR, "03_correlation_matrix.csv"), index_col=0)
 fig, ax = plt.subplots(figsize=(11.5, 9.5))
@@ -358,9 +280,6 @@ plt.setp(ax.get_yticklabels(), rotation=0, fontsize=11)
 fig.tight_layout()
 save(fig, "Figure_09_correlation_matrix")
 
-# ===============================================================
-# FIGURE 10 — Agreement diagnostics for the morphology-only model, grouped CV
-# ===============================================================
 print("\nFigure: agreement diagnostics")
 diag = json.load(open(os.path.join(TAB_DIR, "03_diagnostics.json"), encoding="utf-8"))
 for tag, title in [("B_groupcell_MORPH",
@@ -400,16 +319,12 @@ for tag, title in [("B_groupcell_MORPH",
     axes[2].set_xlabel("Mean of measured and predicted (g)")
     axes[2].set_ylabel("Difference, measured − predicted (g)")
     axes[2].set_title("(c) Bland-Altman agreement")
-    # Below the panel: inside it the three long labels covered the highest points.
     axes[2].legend(fontsize=9.5, loc="upper center", bbox_to_anchor=(0.5, -0.15), ncol=1)
     axes[2].grid(alpha=0.25, linestyle=":")
     fig.suptitle(title, fontsize=13.5, fontweight="bold", y=1.02)
     fig.tight_layout()
     save(fig, f"Figure_10_diagnostics_{tag}")
 
-# ===============================================================
-# FIGURE 11 — SHAP for the morphology-only model
-# ===============================================================
 print("\nFigure: SHAP")
 shap_ok = False
 try:
@@ -444,7 +359,6 @@ try:
     fig.tight_layout()
     save(fig, "Figure_11b_shap_bar_morph")
 
-    # SHAP for the full feature set, for comparison with the submitted Figure 8
     pre_f = make_preprocessor(FULL_FEATURES, genotype_categorical=False)
     Xf = pre_f.fit_transform(df[FULL_FEATURES])
     etf = ExtraTreesRegressor(n_estimators=800, random_state=SEED, n_jobs=-1).fit(Xf, y)
@@ -465,9 +379,6 @@ try:
 except Exception as e:
     print("  SHAP skipped:", e)
 
-# ===============================================================
-# FIGURE 12 — Partial dependence
-# ===============================================================
 print("\nFigure: partial dependence")
 try:
     pipe = make_pipeline(BEST, MORPH_FEATURES, genotype_categorical=True)
@@ -489,7 +400,6 @@ try:
     fig.tight_layout()
     save(fig, "Figure_12_partial_dependence_morph")
 
-    # PDP for year and genotype in the full model, to document their step-like shape
     pipe_f = make_pipeline(BEST, FULL_FEATURES, genotype_categorical=False)
     pipe_f.fit(df[FULL_FEATURES], y)
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.8))
@@ -507,23 +417,15 @@ try:
 except Exception as e:
     print("  PDP skipped:", e)
 
-# ===============================================================
-# FIGURE 13 — Learning curves under both designs
-# ===============================================================
 print("\nFigure: learning curves")
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 configs = [(KFold(n_splits=5, shuffle=True, random_state=SEED), None, FULL_FEATURES,
-            # R2 (t25, V5-07): vermillion sits next to the orange training curve; the
-            # validation curve of panel (a) uses a clearly separated hue.
             "(a) Full feature set, random 5-fold CV", OI["purple"]),
            (GroupKFold(n_splits=5), groups_cell, MORPH_FEATURES,
             "(b) Morphological traits only, GroupKFold by cell", OI["blue"])]
 lc_out = {}
 for ax, (spl, grp, feats, title, c) in zip(axes, configs):
     pipe = make_pipeline(BEST, feats, genotype_categorical=True)
-    # shuffle=True: the rows of the source file are ordered by genotype, so without
-    # shuffling the smaller training subsets would consist of the first few genotypes
-    # only and the curve would describe the sampling order rather than the sample size.
     sizes, tr, te = learning_curve(pipe, df[feats], y, groups=grp, cv=spl,
                                    train_sizes=np.linspace(0.2, 1.0, 9),
                                    scoring="r2", n_jobs=-1,
@@ -548,9 +450,6 @@ save(fig, "Figure_13_learning_curves")
 with open(os.path.join(TAB_DIR, "05_learning_curves.json"), "w", encoding="utf-8") as f:
     json.dump(lc_out, f, indent=2)
 
-# ===============================================================
-# FIGURE 14 — PCA scree plot and biplot
-# ===============================================================
 print("\nFigure: PCA scree and biplot")
 try:
     from sklearn.decomposition import PCA
@@ -602,9 +501,6 @@ try:
 except Exception as e:
     print("  PCA figure skipped:", e)
 
-# ===============================================================
-# FIGURE 15 — Does PCA help prediction?
-# ===============================================================
 print("\nFigure: PCA contribution to prediction")
 try:
     pb = pd.read_csv(os.path.join(TAB_DIR, "04_pca_ml_benchmark.csv"))

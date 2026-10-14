@@ -1,25 +1,3 @@
-# -*- coding: utf-8 -*-
-"""130 - Which resource is the limiting one: the number of plants or the number of
-cells?
-
-The learning curve of Section 3.2 (Figure 9b) thins only the TRAINING ROWS (sklearn
-learning_curve with shuffle=True), so it varies the number of plants; even in the
-smallest subset almost every training cell is still represented. The curve on its own
-therefore cannot test the claim that the number of cells is the limiting resource.
-
-This script tests that claim directly. The outer validation is Design B (GroupKFold(5),
-groups are the genotype x year cells); the test folds are never touched. For each
-training fold two families are built:
-  (a) ALL training cells, k plants per cell        (k = 2, 4, 6, 8, 10)
-  (b) m WHOLE cells, ten plants each               (m = 10, 20, 30, 40, all)
-and the two are also compared at an equal record budget (about 200, 300, 400 records).
-Model her yerde ayni: ExtraTrees (800 agac, seed 42), sekiz morfolojik ozellik,
-egitim kati icinde kurulan on isleme hatti.
-
-Cikti: results/tables/130_cells_vs_plants.csv
-  Family (cells fixed / plants fixed / matched budget), Draws, Cells, PlantsPerCell,
-  Records, R2_mean (katlarin ortalamasi, cekilislere gore ortalanmis), R2_sd
-"""
 import os
 import sys
 
@@ -33,11 +11,11 @@ KOK = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, KOK)
 os.chdir(KOK)
 sys.stdout.reconfigure(encoding="utf-8")
-from common_setup import MORPH_FEATURES, SEED, TAB_DIR, load_data, make_pipeline  # noqa: E402
+from common_setup import MORPH_FEATURES, SEED, TAB_DIR, load_data, make_pipeline
 
-DRAWS = 15            # independent random draws per configuration
+DRAWS = 15
 PLANTS = [2, 4, 6, 8, 10]
-CELLS = [10, 20, 30, 40, None]      # None = egitim katindaki tum cells
+CELLS = [10, 20, 30, 40, None]
 BUDGETS = [200, 300, 400]
 
 
@@ -54,7 +32,6 @@ def fold_r2(df, y, tr_idx, te_idx):
 
 
 def pick(rng, cell_index, n_cells, n_plants):
-    """n_cells hucre pick, her birinden n_plants records pick; records indekslerini dondur."""
     keys = list(cell_index)
     if n_cells is not None and n_cells < len(keys):
         keys = [keys[i] for i in rng.choice(len(keys), n_cells, replace=False)]
@@ -68,7 +45,6 @@ def pick(rng, cell_index, n_cells, n_plants):
 
 
 def run_draws(df, y, gc, n_cells, n_plants, draws=DRAWS):
-    """Her cekiliste bes katin R2 ortalamasi; cekilisler uzerinden ortalama ve SD."""
     g = np.asarray(gc, dtype=object)
     cv = list(GroupKFold(n_splits=5).split(df, y, groups=g))
     records = []
@@ -100,9 +76,7 @@ def main():
         rows.append({"Family": "whole cells, ten plants each", "Cells": c if c else "all (49-50)",
                          "PlantsPerCell": 10, "Records": round(n, 1), "R2_mean": m, "R2_sd": s})
         print("whole cells", c, round(m, 4))
-    # Equal record budget: the same number of records, on one side many cells with
-    # few plants, on the other few cells with all ten plants.
-    n_train_cells = 49  # the smallest training fold; the budget is based on it
+    n_train_cells = 49
     for b in BUDGETS:
         k = max(1, int(round(b / n_train_cells)))
         m1, s1, n1 = run_draws(df, y, gc, None, k)

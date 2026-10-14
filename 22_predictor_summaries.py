@@ -1,29 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-22 — How the ten plants of a cell should be summarised into predictors.
-
-Every analysis so far has summarised a genotype x year cell by the arithmetic
-mean of its ten records, for every trait.  That is one choice among several and
-it has never been tested, even though script 18 showed that the tenth record of
-each cell sits far outside the other nine in the predictors (median z between
-1.7 and 9.3 depending on the trait) while being ordinary in the response.  A
-mean is the least robust of the obvious summaries to exactly that pattern.
-
-The response is left alone throughout: the quantity being predicted is the mean
-green weight of the cell, because that is the agronomic quantity and changing it
-would change the question.  Only the way the *predictors* are summarised varies.
-
-  mean            the arithmetic mean, as used so far
-  median          the median, which ignores how extreme the extreme record is
-  trimmed         the mean after discarding the highest and lowest record
-  mean of 1-9     the mean excluding the tenth record specifically
-  max, min        the extremes, in case the cell is best characterised by its
-                  largest or smallest plant
-  mean + spread   the mean, with the within-cell standard deviation of each
-                  trait added as eight further predictors
-
-Outputs (results/tables/): 22_summaries.csv, 22_summary.json
-"""
 import json
 import os
 import sys
@@ -51,13 +25,11 @@ df, _, _, _, _ = load_data()
 df = df.copy()
 df["_pos"] = df.groupby([YEAR, GENOTYPE]).cumcount() + 1
 
-# response: always the mean green weight of the cell
 resp = (df.groupby([YEAR, GENOTYPE], as_index=False)[TARGET_EN]
           .mean().sort_values([YEAR, GENOTYPE]).reset_index(drop=True))
 
 
 def summarise(how):
-    """Return a cell-level predictor frame under one summarisation rule."""
     src = df[df["_pos"] <= 9] if how == "mean of 1-9" else df
     grp = src.groupby([YEAR, GENOTYPE])[MORPH_FEATURES]
     if how in ("mean", "mean of 1-9", "mean + spread"):
@@ -78,7 +50,6 @@ def summarise(how):
                  .reset_index().sort_values([YEAR, GENOTYPE]).reset_index(drop=True))
         for c in MORPH_FEATURES:
             X[f"sd {c}"] = sd[c].values
-    # allometric products and logarithms, exactly as in arsenal.build_frames
     for name, fn in ALLOMETRIC.items():
         X[name] = fn(X)
     for c in list(X.columns):

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Run the analysis scripts in order; stop at the first failure."""
 import os
 import subprocess
 import sys

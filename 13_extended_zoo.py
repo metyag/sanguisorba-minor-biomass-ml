@@ -1,34 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-13 — Extended model zoo: can any modern method beat the allometric Huber baseline?
-
-Everything is evaluated under the SAME leakage-free protocol as before (whole
-genotype x year cells held out). Only the estimator changes.
-
-Methods added beyond the seventeen of the manuscript
-  Small-sample specialists      Gaussian process regression (three kernels),
-                                kernel ridge, Bayesian ridge, ARD regression,
-                                partial least squares, principal component regression
-  Neural                        multi-layer perceptron (three widths)
-  Tabular transformers          TabPFN v2 (a transformer pre-trained on synthetic
-                                tabular tasks; designed for n < 1000 and <= 100
-                                features, which is exactly this problem)
-                                FT-Transformer (feature tokenizer + transformer
-                                encoder, trained from scratch here)
-  Boosting                      the existing XGBoost, plus LightGBM/CatBoost if present
-
-NOTE ON VISION TRANSFORMERS. A ViT cannot be applied to these data: it consumes
-images, and this dataset contains ten scalar measurements per plant, no imagery.
-The transformer architectures used here are the tabular ones, which are the correct
-analogue for this data type.
-
-Levels
-  CELL  : 62 genotype x year means  (the breeding decision unit)
-  PLANT : 620 individual plants     (the strict per-plant question)
-
-Outputs (results/tables/):
-  13_extended_cell.csv, 13_extended_plant.csv, 13_extended_summary.json
-"""
 import sys, os, json, time, warnings
 import numpy as np
 import pandas as pd
@@ -74,18 +43,12 @@ CELL = add_engineered(
     .mean().sort_values([YEAR, GENOTYPE]).reset_index(drop=True))
 PLANT = add_engineered(df)
 
-# ---------------------------------------------------------------------------
-# Optional heavy dependencies
-# ---------------------------------------------------------------------------
 HAS_TABPFN = HAS_TORCH = False
 try:
     import torch
     HAS_TORCH = True
 except Exception:
     pass
-# TabPFN needs a one-time interactive licence acceptance at priorlabs.ai before it
-# will download its weights. That cannot be done non-interactively, so it is disabled
-# here; set TABPFN=1 in the environment after accepting the licence to enable it.
 if os.environ.get("TABPFN", "0") == "1":
     try:
         from tabpfn import TabPFNRegressor
@@ -96,12 +59,6 @@ print(f"torch: {HAS_TORCH}   tabpfn: {HAS_TABPFN}", flush=True)
 
 
 class FTTransformerRegressor(BaseEstimator, RegressorMixin):
-    """
-    Minimal Feature-Tokenizer Transformer for tabular regression (Gorishniy et al.).
-    Each numeric feature is projected to a token; a CLS token is prepended; a small
-    transformer encoder mixes them; the CLS embedding is read out by an MLP head.
-    Inputs are already standardised by the surrounding pipeline.
-    """
 
     def __init__(self, d_token=32, n_blocks=2, n_heads=4, dropout=0.1,
                  lr=1e-3, epochs=300, weight_decay=1e-4, batch_size=64, seed=SEED):
@@ -126,7 +83,7 @@ class FTTransformerRegressor(BaseEstimator, RegressorMixin):
                 s.head = nn.Sequential(nn.LayerNorm(d), nn.ReLU(), nn.Linear(d, 1))
 
             def forward(s, x):
-                t = x.unsqueeze(-1) * s.w + s.b              # (B, F, d)
+                t = x.unsqueeze(-1) * s.w + s.b
                 t = torch.cat([s.cls.expand(x.shape[0], -1, -1), t], dim=1)
                 t = s.enc(t)
                 return s.head(t[:, 0]).squeeze(-1)
@@ -168,7 +125,6 @@ class FTTransformerRegressor(BaseEstimator, RegressorMixin):
 
 
 def extra_models(n_samples):
-    """Estimators added on top of the manuscript's seventeen."""
     k_rbf = ConstantKernel(1.0) * RBF(length_scale=1.0) + WhiteKernel(1e-2)
     k_mat = ConstantKernel(1.0) * Matern(length_scale=1.0, nu=1.5) + WhiteKernel(1e-2)
     k_rq = ConstantKernel(1.0) * RationalQuadratic(length_scale=1.0) + WhiteKernel(1e-2)
@@ -260,9 +216,6 @@ print("=" * 104)
 print("13 — EXTENDED MODEL ZOO")
 print("=" * 104, flush=True)
 
-# ===========================================================================
-# CELL LEVEL
-# ===========================================================================
 g_cell_c = (CELL[YEAR].astype(str) + "_" + CELL[GENOTYPE].astype(str)).values
 g_geno_c = CELL[GENOTYPE].astype(str).values
 g_year_c = CELL[YEAR].astype(str).values
@@ -304,7 +257,6 @@ print(top[["Feature set", "Target", "Model", "pooled_R2", "pooled_RMSE",
            "pooled_MAE", "pooled_MAPE"]].to_string(index=False,
                                                    float_format=lambda v: f"{v:.4f}"))
 
-# confirm the shortlist under the harder designs
 print("\n" + "-" * 104)
 print("CELL LEVEL — shortlist under leave-one-cell-out / genotype-out / year-out")
 print("-" * 104, flush=True)
@@ -332,14 +284,10 @@ for _, cfg in okc.sort_values("pooled_R2", ascending=False).head(6).iterrows():
 confdf = pd.DataFrame(conf)
 confdf.to_csv(os.path.join(TAB_DIR, "13_extended_cell_confirm.csv"), index=False)
 
-# ===========================================================================
-# PLANT LEVEL
-# ===========================================================================
 print("\n" + "=" * 104)
 print(f"PLANT LEVEL — {len(PLANT)} plants")
 print("=" * 104, flush=True)
 ALLP = {**build_models(), **extra_models(len(PLANT))}
-# GPs are O(n^3); skip them at n = 620 to keep the run tractable
 for k in list(ALLP):
     if k.startswith("GP ("):
         ALLP.pop(k)

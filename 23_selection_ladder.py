@@ -1,47 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-23 — The selection ladder, and the model that comes out of it.
-
-Script 21 produced a result that decides how the revision should report its
-headline.  Widening the search from 88 candidates to 540 *raised* the best
-observed score and *lowered* the honestly validated one, because the inner
-cross-validation of a 540-member space is itself noisy enough to pick a
-configuration that does not generalise: in 71 per cent of the outer folds it
-chose a three-component principal-component regression that then performed
-poorly on the held-out cell.
-
-The right response is not to hide the wide search but to report what each size
-of search actually buys.  This script assembles the ladder:
-
-    no selection at all      one model, fixed in advance
-    SPACE C, 8 candidates    robust linear regression of the eight measured
-                             traits, identity or logarithmic response
-    SPACE B, 90 candidates   adds the strategy dimension of script 19
-    SPACE A, 540 candidates  the wide structural grid of script 21
-
-SPACE C is declared here on grounds that do not depend on any model score.
-Section 18(a) established, from the structure of the records alone, that every
-genotype x year cell contains one record whose predictor values sit several
-within-cell standard deviations above the other nine.  A loss function that is
-robust to a single extreme observation is therefore indicated before any model
-is fitted, which is why the space contains least-absolute-deviation and Huber
-regression, with ordinary ridge regression kept as the non-robust reference.
-The eight measured traits are used as measured, with no derived variables, and
-the response is either untransformed or logarithmic, the latter being the
-standard allometric form in which biomass scales multiplicatively with plant
-dimensions.
-
-One property of the median regression deserves note because it removes a
-correction that the earlier revision needed.  Least-absolute-deviation
-regression on log y estimates the conditional *median* of log y, and because
-the exponential is monotone, exponentiating gives the conditional median of y
-exactly.  No smearing estimator is required for that quantity; a smearing
-correction is needed only if the conditional mean is wanted instead, and both
-are reported.
-
-Outputs (results/tables/): 23_ladder.csv, 23_spaceC_frequency.csv,
-  23_fixed_models.csv, 23_stability.csv, 23_final_model.json
-"""
 import json
 import os
 import sys
@@ -80,9 +36,6 @@ DESIGNS = {
     "Leave-one-year-out (2 outer folds)": GroupOut(ctx.g_year),
 }
 
-# ===========================================================================
-# SPACE C — declared from the data structure, not from any model score
-# ===========================================================================
 ROBUST = ["Quantile (median)", "Huber", "Huber (eps 1.1)", "Ridge"]
 SPACE_C = [("direct", m, "raw8", t) for m in ROBUST for t in ("raw", "log")]
 print(f"\nSPACE C : {len(SPACE_C)} candidates "
@@ -156,9 +109,6 @@ for dname, spl in DESIGNS.items():
 pd.DataFrame(freq_rows).to_csv(os.path.join(TAB_DIR, "23_spaceC_frequency.csv"),
                                index=False)
 
-# ===========================================================================
-# FIXED MODELS — no selection at all
-# ===========================================================================
 print("\n" + "=" * 100)
 print("FIXED MODELS — specified in advance, nothing selected")
 print("=" * 100, flush=True)
@@ -173,7 +123,6 @@ for (m, v, t) in FIXED:
         met, oof = evaluate(POOL[m], CELL, MORPH_FEATURES if v == "raw8" else v,
                             t, yc, spl)
         fx_rows.append({"Model": m, "View": v, "Target": t, "Design": dname, **met})
-    # grouped five-fold as well, for comparability with the sweep
     met5, _ = evaluate(POOL[m], CELL, MORPH_FEATURES, t, yc,
                        GroupKFoldArray(ctx.g_cell, n_splits=5))
     fx_rows.append({"Model": m, "View": v, "Target": t,
@@ -192,9 +141,6 @@ for (m, v, t) in FIXED:
                                ("Model", "View", "Target", "Design")},
                             "Model": m})
 
-# ===========================================================================
-# THE LADDER
-# ===========================================================================
 for path, label, ncol in (("21_summary.json", None, None),
                           ("14_summary.json", "SPACE of script 14", 88)):
     p = os.path.join(TAB_DIR, path)
@@ -225,9 +171,6 @@ piv = show.pivot_table(index=["Selection space", "n_candidates"], columns="Desig
                        values="pooled_R2")
 print(piv.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# STABILITY OF THE FIXED MODEL
-# ===========================================================================
 print("\n" + "=" * 100)
 print("STABILITY — 50 independent random partitions of the 62 cells")
 print("=" * 100, flush=True)
@@ -257,9 +200,6 @@ agg = stab.groupby("Model").agg(R2_mean=("R2", "mean"), R2_sd=("R2", "std"),
                                                               ascending=False)
 print(agg.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# THE FINAL MODEL
-# ===========================================================================
 FINAL_MODEL, FINAL_VIEW, FINAL_TARGET = FINAL_MODEL_NAME, _FV, _FT
 print("\n" + "=" * 100)
 print(f"FINAL MODEL: {FINAL_MODEL}, eight measured traits, "
@@ -271,7 +211,6 @@ pipe.fit(CELL[MORPH_FEATURES].astype(float), yc)
 mdl = pipe.named_steps["model"].regressor_
 scaler = pipe.named_steps["scale"]
 coef_scaled = np.asarray(mdl.coef_).ravel()
-# undo the standardisation so the coefficients are exponents on the raw traits
 coef_raw = coef_scaled / scaler.scale_
 intercept = float(mdl.intercept_) - float(np.sum(coef_scaled * scaler.mean_
                                                  / scaler.scale_))
@@ -311,9 +250,6 @@ final["nested_spaceC"] = {r["Design"]: {k: r[k] for k in r if k != "Design"}
 with open(os.path.join(TAB_DIR, "23_final_model.json"), "w", encoding="utf-8") as f:
     json.dump(final, f, indent=2, default=float)
 
-# ---------------------------------------------------------------------------
-# THE REDUCED MODEL: the traits that nested subset selection kept in every fold
-# ---------------------------------------------------------------------------
 _sub_p = os.path.join(TAB_DIR, "20_subset_nested.json")
 if os.path.exists(_sub_p):
     _sub = json.load(open(_sub_p, encoding="utf-8"))
@@ -343,7 +279,6 @@ if os.path.exists(_sub_p):
     with open(os.path.join(TAB_DIR, "23_final_model.json"), "w", encoding="utf-8") as f:
         json.dump(final, f, indent=2, default=float)
 
-# --- adapter files in the schema the manuscript builders already consume ----
 _key = {"Grouped five-fold over cells": "grouped5fold",
         "Leave-one-cell-out (62 outer folds)": "LOCO",
         "Leave-one-genotype-out (31 outer folds)": "LOGO",

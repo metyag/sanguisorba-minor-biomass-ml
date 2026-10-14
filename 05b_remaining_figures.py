@@ -1,19 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-05b — The figures that 05_figures.py had not yet produced.
-
-Split out because the partial-dependence computation in scikit-learn falls back
-to the single-threaded brute-force method for Pipeline estimators; it is run here
-with n_jobs=-1 and a coarser grid (40 points), which is more than enough for a
-smooth curve and is roughly an order of magnitude faster.
-
-Produces:
-  Figure_12_partial_dependence_morph
-  Figure_12b_partial_dependence_full
-  Figure_13_learning_curves          (+ 05_learning_curves.json)
-  Figure_14_pca_scree_biplot
-  Figure_15_pca_contribution
-"""
 import sys, os, json, warnings
 import numpy as np
 import pandas as pd
@@ -60,18 +44,12 @@ df, y, groups_cell, groups_geno, groups_year = load_data()
 BEST = ExtraTreesRegressor(n_estimators=800, random_state=SEED, n_jobs=-1)
 print("05b — remaining figures", flush=True)
 
-# ===============================================================
-# Partial dependence — morphological traits only
-# ===============================================================
 print("\nPartial dependence (morphological traits)", flush=True)
 top = pd.read_csv(os.path.join(TAB_DIR, "03_permutation_importance.csv"))
 top = top[(top.Design == "B_groupcell") & (top["Feature set"] == "MORPH")] \
     .sort_values("Permutation dR2_mean", ascending=False)["Feature"].tolist()[:6]
 print("  features:", top, flush=True)
 
-# The three count traits are stored as integers, and partial dependence refuses
-# integer columns outright, so the frame is cast to float here for the same
-# reason it is cast in the full-feature block below.
 X_morph = df[MORPH_FEATURES].astype(float)
 pipe = make_pipeline(BEST, MORPH_FEATURES, genotype_categorical=True)
 pipe.fit(X_morph, y)
@@ -89,13 +67,7 @@ fig.suptitle("Partial dependence of predicted fresh plant weight on the six most
 fig.tight_layout()
 save(fig, "Figure_12_partial_dependence_morph")
 
-# ===============================================================
-# Partial dependence — year, genotype, plant height (full model)
-# ===============================================================
 print("\nPartial dependence (full feature set)", flush=True)
-# Year and Genotype are stored as int64 in the source file; scikit-learn refuses
-# to compute partial dependence on integer columns because the grid would be
-# silently rounded, so the frame is cast to float first.
 X_full = df[FULL_FEATURES].astype(float)
 pipe_f = make_pipeline(BEST, FULL_FEATURES, genotype_categorical=False)
 pipe_f.fit(X_full, y)
@@ -112,9 +84,6 @@ fig.suptitle("Partial dependence on year, genotype and plant height (full featur
 fig.tight_layout()
 save(fig, "Figure_12b_partial_dependence_full")
 
-# ===============================================================
-# Learning curves
-# ===============================================================
 print("\nLearning curves", flush=True)
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 configs = [(KFold(n_splits=5, shuffle=True, random_state=SEED), None, FULL_FEATURES,
@@ -152,9 +121,6 @@ save(fig, "Figure_13_learning_curves")
 with open(os.path.join(TAB_DIR, "05_learning_curves.json"), "w", encoding="utf-8") as f:
     json.dump(lc_out, f, indent=2)
 
-# ===============================================================
-# PCA scree plot and biplot
-# ===============================================================
 print("\nPCA scree and biplot", flush=True)
 PCA_VARS = MORPH_FEATURES + [TARGET_EN]
 Z = StandardScaler().fit_transform(df[PCA_VARS].values)
@@ -205,9 +171,6 @@ ax.grid(alpha=0.25, linestyle=":")
 fig.tight_layout()
 save(fig, "Figure_14_pca_scree_biplot")
 
-# ===============================================================
-# Does PCA help prediction?
-# ===============================================================
 print("\nPCA contribution to prediction", flush=True)
 pb = pd.read_csv(os.path.join(TAB_DIR, "04_pca_ml_benchmark.csv"))
 SHORT = {"Raw morphological traits (8)": "Raw traits\n(all 8)",
@@ -226,7 +189,6 @@ for ax, dname in zip(axes, sorted(pb["Design"].unique())):
     ax.bar(range(len(reps)), best["R2_mean"], yerr=best["R2_sd"],
            color=[OI["green"] if r.startswith("Raw") else OI["sky"] for r in reps],
            edgecolor="black", capsize=4)
-    # place each label clear of the top of its error bar
     for i, (r2, sd, m) in enumerate(zip(best["R2_mean"], best["R2_sd"], best["Model"])):
         ax.text(i, r2 + abs(sd) + 0.04, f"{r2:.3f}\n({m})", ha="center", va="bottom",
                 fontsize=9.5, color="black")

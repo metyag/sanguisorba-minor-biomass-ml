@@ -1,41 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-21 — Nested selection over the enlarged search space: the honest headline.
-
-Scripts 18-20 searched thousands of configurations and reported the best of
-them.  That maximum is optimistically biased by construction, and the size of
-the bias grows with the size of the search.  Since the search has now grown by
-more than an order of magnitude relative to script 14, the bias has to be
-re-measured rather than assumed unchanged.
-
-The measurement is the same as before: the entire selection procedure is placed
-inside the validation loop.  For every outer fold the held-out cells are set
-aside, an inner grouped cross-validation over the remaining cells alone chooses
-the configuration, and that choice is refitted and applied to the held-out
-cells.  The pooled out-of-fold statistics then describe what the *procedure*
-achieves on cells it has never seen, which is what a reader needs.
-
-HOW THE CANDIDATE SPACE IS DEFINED, AND WHY IT MATTERS.  The candidates are
-specified by a structural rule fixed in advance --- every estimator whose
-single fit is cheap enough for a 62-fold nested loop, crossed with the data
-views and target transforms that correspond to a recognisable statistical model
---- and *not* by taking the winners of the script-18 sweep.  Seeding the nested
-loop with the sweep's winners would import exactly the optimism the nesting is
-meant to remove, because those winners were chosen using all 62 cells.
-
-Two spaces are evaluated.
-
-  SPACE A (estimator x view x target).  Directly comparable with script 14,
-          which used 88 candidates; this one is larger.
-
-  SPACE B (SPACE A restricted to a core estimator set, crossed with the
-          modelling strategies from script 19: direct fitting, bottom-up
-          aggregation from the plant level, and three augmentation schemes).
-          This asks whether the strategy dimension survives honest selection.
-
-Outputs (results/tables/): 21_nested_master.csv, 21_selection_frequency.csv,
-  21_oof_*.csv, 21_summary.json
-"""
 import json
 import os
 import sys
@@ -66,9 +28,6 @@ POOL = build_pool("cell")
 POOL_PLANT = build_pool("plant")
 yc = ctx.y_cell
 
-# ---------------------------------------------------------------------------
-# structural rule: estimators cheap enough to refit inside a 62-fold nested loop
-# ---------------------------------------------------------------------------
 NESTED_ESTIMATORS = [
     "Linear", "Ridge", "RidgeCV", "LassoCV", "ElasticNetCV",
     "Huber", "Huber (eps 1.1)", "Huber (eps 2.0)",
@@ -87,9 +46,6 @@ SPACE_A = [("direct", m, v, t)
 
 CORE = ["Ridge", "Huber", "Quantile (median)", "Bayesian Ridge", "ARD Regression",
         "PLS (3 comp)"]
-# A Gaussian process is excluded from the bottom-up arm only: its cost is cubic
-# in the number of training rows, and the bottom-up arm trains on 610 plants
-# rather than 62 cells, which would dominate the whole nested run.
 SPACE_B = ([("direct", m, v, t) for m in CORE
             for v in ["raw8", "log8"] for t in ["raw", "log"]]
            + [("bottomup", m, v, t) for m in CORE
@@ -120,7 +76,6 @@ def _pool_for(spec):
 
 
 def inner_score(spec, tr, n_splits=5):
-    """Grouped inner cross-validation over the training cells only."""
     inner = GroupKFoldArray(ctx.g_cell[tr], n_splits=min(n_splits, len(tr)))
     fp = build_candidate(ctx, spec, _pool_for(spec))
     o = np.full(len(tr), np.nan)
@@ -139,7 +94,6 @@ def inner_score(spec, tr, n_splits=5):
 
 
 def one_fold(args):
-    """Choose a configuration on the training cells, then predict the held-out."""
     space, tr, te = args
     scores = [inner_score(s, tr) for s in space]
     k = int(np.argmax(scores))

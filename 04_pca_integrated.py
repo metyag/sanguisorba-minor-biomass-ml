@@ -1,24 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-04 — PCA, INTEGRATED INTO THE MACHINE-LEARNING FRAMEWORK.
-
-Reviewer 2 (comment 4) and the Editor both state that the PCA section is
-descriptive only and is not used for model development, feature selection or
-interpretation, and should therefore either be justified or removed.
-
-This script gives PCA an explicit, testable role:
-  (a) the descriptive PCA is recomputed and reported properly
-      (eigenvalues, explained variance, communalities, Varimax-rotated loadings);
-  (b) PC scores are then used AS PREDICTORS inside the same cross-validated
-      pipeline, so that the contribution of PCA to predictive performance can be
-      measured rather than asserted;
-  (c) PCA is also used as a multicollinearity diagnostic (condition number, VIF).
-
-Outputs (results/tables/):
-  04_pca_eigenvalues.csv, 04_pca_loadings.csv, 04_pca_varimax.csv,
-  04_pca_communalities.csv, 04_pca_vif.csv, 04_pca_ml_benchmark.csv,
-  04_pca_summary.json
-"""
 import sys, os, json, warnings
 import numpy as np
 import pandas as pd
@@ -39,20 +18,12 @@ print("=" * 90)
 print("04 — PCA INTEGRATED INTO THE ML FRAMEWORK")
 print("=" * 90)
 
-# The descriptive PCA runs on nine variables over the plant records: the eight
-# morphological traits plus fresh plant weight. The manuscript does not report the
-# components themselves; what it takes from this script is the collinearity
-# diagnostics computed below, the condition number and the variance inflation
-# factors of the eight predictors.
 PCA_VARS = MORPH_FEATURES + [TARGET_EN]
 print(f"Variables entered into the descriptive PCA (n = {len(PCA_VARS)}): {PCA_VARS}")
 print(f"Observations: {len(df)}")
 
 Z = StandardScaler().fit_transform(df[PCA_VARS].values)
 
-# ---------------------------------------------------------------
-# (a) Descriptive PCA
-# ---------------------------------------------------------------
 pca_full = PCA(n_components=len(PCA_VARS), random_state=SEED).fit(Z)
 eig = pca_full.explained_variance_
 evr = pca_full.explained_variance_ratio_
@@ -70,7 +41,6 @@ n_kaiser = int((eig > 1).sum())
 print(f"\nKaiser criterion (eigenvalue > 1) retains {n_kaiser} components, "
       f"explaining {100*evr[:n_kaiser].sum():.2f}% of total variance.")
 
-# Loadings (component matrix = eigenvector * sqrt(eigenvalue))
 load = pca_full.components_[:n_kaiser].T * np.sqrt(eig[:n_kaiser])
 load_df = pd.DataFrame(load, index=PCA_VARS,
                        columns=[f"PC{i+1}" for i in range(n_kaiser)])
@@ -78,7 +48,6 @@ load_df.to_csv(os.path.join(TAB_DIR, "04_pca_loadings.csv"))
 print("\n### Unrotated loadings")
 print(load_df.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# Communalities
 comm = (load ** 2).sum(axis=1)
 comm_df = pd.DataFrame({"Variable": PCA_VARS, "Communality": comm}) \
     .sort_values("Communality", ascending=False)
@@ -88,7 +57,6 @@ print(comm_df.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
 
 def varimax(Phi, gamma=1.0, q=100, tol=1e-6):
-    """Kaiser Varimax rotation."""
     p, k = Phi.shape
     R = np.eye(k)
     d = 0.0
@@ -111,10 +79,6 @@ rot_df.to_csv(os.path.join(TAB_DIR, "04_pca_varimax.csv"))
 print("\n### Varimax-rotated loadings")
 print(rot_df.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# PCA on the PREDICTORS ONLY (target excluded) — this is the version that can
-# legitimately be used for prediction, since including the target would leak it.
-# ---------------------------------------------------------------
 print("\n" + "=" * 90)
 print("PCA ON PREDICTORS ONLY (8 morphological traits, target excluded)")
 print("=" * 90)
@@ -138,7 +102,6 @@ loadp_df.to_csv(os.path.join(TAB_DIR, "04_pca_predictors_loadings.csv"))
 print("\n### Predictor-only loadings")
 print(loadp_df.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# Correlation of each PC score with the target
 scores = pca_pred.transform(Zp)
 pc_corr = pd.DataFrame({
     "Component": [f"PC{i+1}" for i in range(scores.shape[1])],
@@ -150,9 +113,6 @@ pc_corr.to_csv(os.path.join(TAB_DIR, "04_pca_score_target_correlation.csv"), ind
 print("\n### Correlation of each PC score with the target")
 print(pc_corr.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# (c) Multicollinearity diagnostics
-# ---------------------------------------------------------------
 print("\n" + "=" * 90)
 print("MULTICOLLINEARITY DIAGNOSTICS (the practical justification for PCA)")
 print("=" * 90)
@@ -170,9 +130,6 @@ vif = pd.DataFrame(vif_rows).sort_values("VIF", ascending=False)
 vif.to_csv(os.path.join(TAB_DIR, "04_pca_vif.csv"), index=False)
 print(vif.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# (b) PC scores AS PREDICTORS — cross-validated, PCA fitted inside each fold
-# ---------------------------------------------------------------
 print("\n" + "=" * 90)
 print("DOES PCA HELP PREDICTION? PC scores used as model inputs")
 print("(PCA is fitted inside each training fold only — no leakage)")
@@ -186,7 +143,6 @@ DESIGNS = {
 models = build_models()
 rows = []
 for dname, (splitter, grp) in DESIGNS.items():
-    # Baseline: raw morphological traits
     for m_name, reg in models.items():
         pipe = make_pipeline(reg, MORPH_FEATURES, genotype_categorical=True)
         out = cross_validate(pipe, df[MORPH_FEATURES], y, cv=splitter, groups=grp,
@@ -197,7 +153,6 @@ for dname, (splitter, grp) in DESIGNS.items():
                      "MAE_mean": float(-np.mean(out["test_mae"])),
                      "MAPE_mean": float(-np.mean(out["test_mape"]))})
 
-    # PC representations
     for k in [2, 3, 4, len(MORPH_FEATURES)]:
         label = (f"PCA scores, first {k} PCs" if k < len(MORPH_FEATURES)
                  else f"PCA scores, all {k} PCs (rotation only)")

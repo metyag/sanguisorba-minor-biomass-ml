@@ -1,8 +1,6 @@
-# The plant-level data file is not distributed with this code.
 data/*
 !data/README.txt
 
-# Everything the pipeline generates.
 results/
 *.xlsx
 *.csv

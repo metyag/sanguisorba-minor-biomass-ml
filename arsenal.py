@@ -1,36 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-arsenal.py — the complete inventory of modelling options that the revision tests.
-
-Everything downstream (scripts 18-22) imports its data views, its estimator pool
-and its evaluation harness from here, so that the wide exploratory sweep and the
-nested-selection run that produces the headline number use *identical* code paths.
-That identity is what makes the nested estimate an honest description of the
-exploratory search rather than a separate experiment.
-
-Three things are defined here.
-
-1. DATA VIEWS.  The cell-level frame is built once and carries, for every
-   morphological trait, the raw value, its natural logarithm, a set of
-   allometric products, and the logarithms of those products.  A "view" is just
-   a named list of columns, so switching between the raw and the log-log
-   parameterisation costs nothing and cannot silently differ between scripts.
-
-   The log-log view matters more than it looks.  Biomass scales with plant
-   dimensions as a power law, so the additive model that is correct on the
-   log scale is log y = b0 + sum_i b_i log x_i.  Taking logarithms of the
-   *target* alone, which is what scripts 12-15 did, only half-implements that.
-
-2. ESTIMATOR POOL.  Every estimator is registered with the sample sizes it is
-   allowed to run at, so that the same dictionary can serve the 62-cell problem
-   and the 620-plant problem without hand-editing.
-
-3. HARNESS.  A single evaluator that produces pooled out-of-fold predictions
-   under an arbitrary grouping, plus the rank statistics that matter for a
-   selection decision (Spearman, Kendall, top-k recovery).
-
-No numbers are hard-coded anywhere; everything is computed from the Excel file.
-"""
 import warnings
 
 import numpy as np
@@ -48,9 +15,6 @@ from common_setup import (GENOTYPE, MORPH_FEATURES, SEED, TARGET_EN, YEAR,
 
 warnings.filterwarnings("ignore")
 
-# ===========================================================================
-# 1. DATA VIEWS
-# ===========================================================================
 ALLOMETRIC = {
     "Stem volume proxy":  lambda X: np.pi * (X["Main stem diameter"] / 2.0) ** 2
                                     * X["Plant height"] * X["Number of main stems"],
@@ -66,28 +30,16 @@ LOG_ALLO = [f"log {c}" for c in ALLO_NAMES]
 
 
 def _augment(frame):
-    """Add allometric products and the logarithm of every positive column."""
     X = frame.copy()
     for name, fn in ALLOMETRIC.items():
         X[name] = fn(X)
     for c in MORPH_FEATURES + ALLO_NAMES:
         v = X[c].astype(float)
-        # every trait is strictly positive in this dataset; the guard is only
-        # so that a future dataset with a zero does not fail silently
         X[f"log {c}"] = np.log(np.where(v > 0, v, np.nan))
     return X
 
 
 def build_frames(exclude_last_plant=False):
-    """
-    Return (PLANT, CELL, GENO) frames.
-
-    exclude_last_plant : drop the tenth record of every genotype x year cell.
-        The tenth record is a systematic outlier in the predictors (see
-        script 18's data-integrity section); this switch exists so that every
-        result can be reported both ways rather than resting on an assumption
-        about what that record represents.
-    """
     df, _, _, _, _ = load_data()
     df = df.copy()
     df["_pos"] = df.groupby([YEAR, GENOTYPE]).cumcount() + 1
@@ -97,7 +49,6 @@ def build_frames(exclude_last_plant=False):
     cols = MORPH_FEATURES + [TARGET_EN]
     cell = (df.groupby([YEAR, GENOTYPE], as_index=False)[cols]
               .mean().sort_values([YEAR, GENOTYPE]).reset_index(drop=True))
-    # within-cell dispersion of the target, used by the weighted fits
     sd = (df.groupby([YEAR, GENOTYPE])[TARGET_EN].std(ddof=1)
             .reset_index(name="_target_sd"))
     n = (df.groupby([YEAR, GENOTYPE])[TARGET_EN].size()
@@ -110,7 +61,6 @@ def build_frames(exclude_last_plant=False):
     return _augment(df), _augment(cell), _augment(geno)
 
 
-# --- named column lists -----------------------------------------------------
 VIEWS = {
     "raw8":            MORPH_FEATURES,
     "log8":            LOG_MORPH,
@@ -128,11 +78,7 @@ def view_columns(name):
     return list(VIEWS[name])
 
 
-# ===========================================================================
-# 2. TARGET TRANSFORMS
-# ===========================================================================
 def wrap_target(reg, transform):
-    """Wrap an estimator so that it is fitted on a transformed response."""
     if transform == "raw":
         return clone(reg)
     if transform == "log":
@@ -158,9 +104,6 @@ def wrap_target(reg, transform):
 TARGETS = ["raw", "log", "sqrt", "yeo", "boxcox"]
 
 
-# ===========================================================================
-# 3. ESTIMATOR POOL
-# ===========================================================================
 from sklearn.linear_model import (ARDRegression, BayesianRidge, ElasticNetCV,
                                   HuberRegressor, LassoCV, LinearRegression,
                                   OrthogonalMatchingPursuitCV, QuantileRegressor,
@@ -201,13 +144,11 @@ except Exception:
 
 
 def pcr(k):
-    """Principal-component regression as a two-step pipeline."""
     return Pipeline([("pca", PCA(n_components=k, random_state=SEED)),
                      ("lin", LinearRegression())])
 
 
 class GAMWrapper(BaseEstimator, RegressorMixin):
-    """Thin scikit-learn wrapper around pygam's LinearGAM with per-term splines."""
 
     def __init__(self, n_splines=8, lam=0.6):
         self.n_splines = n_splines
@@ -227,13 +168,6 @@ class GAMWrapper(BaseEstimator, RegressorMixin):
 
 
 class MonotoneLGBM(BaseEstimator, RegressorMixin):
-    """
-    LightGBM with every feature constrained to a non-decreasing effect.
-
-    Biomass cannot fall when a plant becomes taller, thicker or leafier while
-    everything else is held constant, so the monotone constraint encodes real
-    agronomic knowledge and acts as a regulariser that costs no sample size.
-    """
 
     def __init__(self, n_estimators=400, learning_rate=0.05, num_leaves=7,
                  min_child_samples=5):
@@ -257,17 +191,9 @@ class MonotoneLGBM(BaseEstimator, RegressorMixin):
 
 
 def build_pool(level="cell"):
-    """
-    level : "cell" (n = 62) or "plant" (n = 620).
-
-    The tree ensembles are given deliberately small leaves at cell level; the
-    defaults assume hundreds of observations and simply cannot be evaluated
-    fairly on 62 units otherwise.
-    """
     small = (level == "cell")
     leaf = 2 if small else 5
     pool = {
-        # -- regularised linear -------------------------------------------
         "Linear":               LinearRegression(),
         "Ridge":                Ridge(alpha=1.0),
         "RidgeCV":              RidgeCV(alphas=np.logspace(-3, 3, 25)),
@@ -285,7 +211,6 @@ def build_pool(level="cell"):
         "Quantile (median)":    QuantileRegressor(quantile=0.5, alpha=0.001,
                                                   solver="highs"),
         "OMP":                  OrthogonalMatchingPursuitCV(max_iter=8),
-        # -- latent variable ----------------------------------------------
         "PLS (2 comp)":         PLSRegression(n_components=2),
         "PLS (3 comp)":         PLSRegression(n_components=3),
         "PLS (4 comp)":         PLSRegression(n_components=4),
@@ -293,7 +218,6 @@ def build_pool(level="cell"):
         "PCR (3 comp)":         pcr(3),
         "PCR (4 comp)":         pcr(4),
         "PCR (5 comp)":         pcr(5),
-        # -- kernel and Gaussian process ----------------------------------
         "Kernel Ridge (RBF)":   KernelRidge(kernel="rbf", alpha=1.0, gamma=0.1),
         "Kernel Ridge (poly2)": KernelRidge(kernel="polynomial", degree=2, alpha=1.0),
         "Kernel Ridge (poly3)": KernelRidge(kernel="polynomial", degree=3, alpha=1.0),
@@ -316,10 +240,8 @@ def build_pool(level="cell"):
                                     kernel=ConstantKernel(1.0) * DotProduct()
                                            + ConstantKernel(1.0) * RBF(1.0) + WhiteKernel(1e-2),
                                     normalize_y=True, random_state=SEED, alpha=1e-8),
-        # -- neighbours ----------------------------------------------------
         "KNN (5, dist)":        KNeighborsRegressor(n_neighbors=5, weights="distance"),
         "KNN (9, dist)":        KNeighborsRegressor(n_neighbors=9, weights="distance"),
-        # -- tree ensembles -------------------------------------------------
         "Random Forest":        RandomForestRegressor(n_estimators=600, min_samples_leaf=leaf,
                                                       random_state=SEED, n_jobs=1),
         "ExtraTrees":           ExtraTreesRegressor(n_estimators=800, min_samples_leaf=leaf,
@@ -333,7 +255,6 @@ def build_pool(level="cell"):
         "AdaBoost":             AdaBoostRegressor(n_estimators=400, learning_rate=0.05,
                                                   random_state=SEED),
         "Bagging (Trees)":      BaggingRegressor(n_estimators=300, random_state=SEED, n_jobs=1),
-        # -- neural ----------------------------------------------------------
         "MLP (32-16)":          MLPRegressor(hidden_layer_sizes=(32, 16), max_iter=6000,
                                              random_state=SEED, early_stopping=False,
                                              alpha=1e-2),
@@ -390,11 +311,7 @@ def family_of(model_name):
     return "Other"
 
 
-# ===========================================================================
-# 4. HARNESS
-# ===========================================================================
 def make_pipe(reg, target, standardise=True):
-    """Impute, optionally standardise, then fit the target-wrapped estimator."""
     steps = [("impute", SimpleImputer(strategy="median"))]
     if standardise:
         steps.append(("scale", StandardScaler()))
@@ -403,7 +320,6 @@ def make_pipe(reg, target, standardise=True):
 
 
 class GroupOut:
-    """Leave-one-group-out over an explicit label array."""
 
     def __init__(self, g):
         self.g = np.asarray(g)
@@ -419,7 +335,6 @@ class GroupOut:
 
 
 def metrics(y_true, y_pred, top_k=10):
-    """Accuracy metrics plus the rank statistics a selection decision needs."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     m = np.isfinite(y_true) & np.isfinite(y_pred)
@@ -444,7 +359,6 @@ def metrics(y_true, y_pred, top_k=10):
 
 def evaluate(reg, frame, cols, target, y, splitter, standardise=True,
              sample_weight=None):
-    """Pooled out-of-fold evaluation under an arbitrary leave-group-out design."""
     X = frame[cols].astype(float)
     oof = np.full(len(y), np.nan)
     for tr, te in splitter.split():
@@ -461,7 +375,6 @@ def evaluate(reg, frame, cols, target, y, splitter, standardise=True,
 
 
 class GroupKFoldArray:
-    """Grouped k-fold expressed through the same interface as GroupOut."""
 
     def __init__(self, g, n_splits=5, seed=SEED):
         self.g = np.asarray(g)

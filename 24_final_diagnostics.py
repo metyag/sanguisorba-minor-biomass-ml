@@ -1,36 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-24 — The plant-level comparison on a consistent protocol, and the diagnostics
-     that the final model needs before it can be recommended for use.
-
-Three parts.
-
-(a) THE SAME ARSENAL AT THE PLANT LEVEL.  Script 18 compared 47 estimators at
-    the cell level.  Repeating a restricted version of that comparison on the
-    620 individual plants, blocked on the same cells and scored the same way,
-    is what licenses any statement about how the ranking of method families
-    depends on sample size.  It is restricted rather than complete only because
-    a plant-level fit costs about ten times a cell-level one.
-
-(b) RETRANSFORMATION.  The final model is fitted to log green weight by least
-    absolute deviations, so exponentiating its prediction returns the
-    conditional *median* exactly, since the exponential is monotone and the
-    median commutes with monotone transformations.  If the conditional *mean*
-    is wanted instead --- for a total-yield estimate rather than a per-cell
-    typical value --- a smearing correction is required.  Both are computed,
-    together with what each does to the error statistics, so that the choice is
-    made explicitly rather than by accident.
-
-(c) PREDICTION INTERVALS.  A point prediction is not enough to act on.  The
-    half-widths are empirical quantiles of the absolute and relative
-    leave-one-cell-out residuals of the 62 cells. The "empirical coverage"
-    columns count the cells inside the interval on the same residuals, so they
-    follow from the quantile level and are not an independent check of
-    calibration; no finite-sample coverage guarantee is implied.
-
-Outputs (results/tables/): 24_plant_sweep.csv, 24_retransformation.csv,
-  24_conformal.csv, 24_summary.json
-"""
 import json
 import os
 import sys
@@ -60,9 +27,6 @@ g_cell = (CELL[YEAR].astype(str) + "_" + CELL[GENOTYPE].astype(str)).values
 g_geno = CELL[GENOTYPE].astype(str).values
 g_year = CELL[YEAR].astype(str).values
 
-# ===========================================================================
-# (a) PLANT LEVEL, SAME PROTOCOL
-# ===========================================================================
 yp = PLANT[TARGET_EN].values.astype(float)
 gp_cell = (PLANT[YEAR].astype(str) + "_" + PLANT[GENOTYPE].astype(str)).values
 POOL_P = build_pool("plant")
@@ -105,10 +69,6 @@ fam_cmp.to_csv(os.path.join(TAB_DIR, "24_family_comparison.csv"))
 print("BEST R2 BY METHOD FAMILY, IDENTICAL PROTOCOL AT BOTH LEVELS")
 print(fam_cmp.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# The manuscript quotes the linear-minus-trees gap at each level and the largest
-# disagreement between the two levels. Those are differences of numbers in the
-# table above rather than numbers in it, so they are written out here; otherwise
-# the document verifier cannot trace them and has to report them as untraced.
 _pl, _cl = "Plant level (620 records)", "Cell level (62 cells)"
 fam_gaps = pd.DataFrame([{
     "Quantity": "linear minus tree ensembles, plant level",
@@ -124,9 +84,6 @@ fam_gaps.to_csv(os.path.join(TAB_DIR, "24_family_gaps.csv"), index=False)
 print("\nDIFFERENCES QUOTED IN THE TEXT")
 print(fam_gaps.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# (b) RETRANSFORMATION: median versus mean
-# ===========================================================================
 print("\n" + "=" * 100)
 print("(b) RETRANSFORMATION — direct exponentiation versus a mean correction")
 print("=" * 100, flush=True)
@@ -150,7 +107,6 @@ for dname, spl in DESIGNS.items():
         p.fit(X.iloc[tr], yc[tr])
         pred = np.asarray(p.predict(X.iloc[te])).ravel()
         naive[te] = pred
-        # residuals on the log scale, from the training cells only
         fitted_tr = np.asarray(p.predict(X.iloc[tr])).ravel()
         r_log = np.log(yc[tr]) - np.log(np.maximum(fitted_tr, 1e-9))
         smear[te] = pred * float(np.mean(np.exp(r_log)))
@@ -169,9 +125,6 @@ rt = pd.DataFrame(rt_rows)
 rt.to_csv(os.path.join(TAB_DIR, "24_retransformation.csv"), index=False)
 print(rt.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# (c) PREDICTION INTERVALS FROM THE EMPIRICAL QUANTILES OF THE LOCO RESIDUALS
-# ===========================================================================
 print("\n" + "=" * 100)
 print("(c) CONFORMAL PREDICTION INTERVALS from the leave-one-cell-out residuals")
 print("=" * 100, flush=True)
@@ -196,9 +149,6 @@ cf = pd.DataFrame(cf_rows)
 cf.to_csv(os.path.join(TAB_DIR, "24_conformal.csv"), index=False)
 print(cf.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
 
-# ===========================================================================
-# summary
-# ===========================================================================
 summary = {
     "plant_level_configs": int(len(P_JOBS)),
     "plant_level_best": (pok.loc[pok["pooled_R2"].idxmax()].to_dict()

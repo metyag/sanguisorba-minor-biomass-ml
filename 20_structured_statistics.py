@@ -1,35 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-20 — Structured statistical approaches that a pure estimator sweep cannot reach.
-
-Four questions, each of which is about the *form* of the analysis rather than
-about which learner is applied.
-
-1. WHICH TRAITS.  All 255 non-empty subsets of the eight traits are scored, so
-   that the choice of predictors is made by exhaustive search rather than by a
-   greedy forward selection.  Because choosing the best of 255 subsets on the
-   same folds that score it is optimistic, the same search is then run again
-   with the subset choice inside the validation loop; the difference between
-   the two is the selection optimism attributable to feature choice alone.
-
-2. HOW TO WEIGHT.  A cell mean computed from ten plants is not equally precise
-   in every cell: the within-cell standard deviation of green weight varies
-   several-fold across cells.  Weighting each cell by the reciprocal of the
-   squared standard error of its mean is the generalised-least-squares answer
-   and costs nothing to test.
-
-3. WHICH UNIT.  Predicting the genotype mean over both seasons (31 units) is a
-   third possible unit of analysis, coarser than the cell and closer still to
-   what a breeder selects on.
-
-4. WHAT COUNTS AS SUCCESS.  A breeder does not need the predicted weight to be
-   correct in grams; the decision is which genotypes to keep.  Rank correlation
-   and top-k recovery measure that directly, and are reported alongside R2 for
-   every design.
-
-Outputs (results/tables/): 20_subsets.csv, 20_subset_nested.json,
-  20_weighting.csv, 20_genotype_level.csv, 20_rank_metrics.csv, 20_summary.json
-"""
 import itertools
 import json
 import os
@@ -69,9 +37,6 @@ DESIGNS = {
     "LOYO": GroupOut(g_year),
 }
 
-# ===========================================================================
-# 1. EXHAUSTIVE SUBSET SEARCH
-# ===========================================================================
 print("\n" + "=" * 100)
 print("1. EXHAUSTIVE SUBSET SEARCH OVER THE EIGHT TRAITS")
 print("=" * 100, flush=True)
@@ -116,7 +81,6 @@ byk = ok.sort_values("pooled_R2", ascending=False).groupby("k").head(1).sort_val
 print(byk[["k", "Model", "Traits", "pooled_R2", "pooled_MAE"]]
       .to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# --- the same search with the subset choice inside the validation loop ------
 print("\nNESTED SUBSET SELECTION (choice made on the training cells only)")
 print("-" * 100, flush=True)
 
@@ -178,9 +142,6 @@ with open(os.path.join(TAB_DIR, "20_subset_nested.json"), "w", encoding="utf-8")
     json.dump({"exhaustive_best_grouped5fold": best_exhaustive,
                "n_subsets": len(SUBSETS), "nested": nested_out}, f, indent=2)
 
-# ===========================================================================
-# 2. WEIGHTING BY THE PRECISION OF EACH CELL MEAN
-# ===========================================================================
 print("\n" + "=" * 100)
 print("2. WEIGHTING EACH CELL BY THE PRECISION OF ITS MEAN")
 print("=" * 100, flush=True)
@@ -215,9 +176,6 @@ piv = wt[wt.Status == "ok"].pivot_table(index=["Design", "Model"],
 print()
 print(piv.to_string(float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# 3. THE GENOTYPE AS THE UNIT (31 units, both seasons averaged)
-# ===========================================================================
 print("\n" + "=" * 100)
 print("3. GENOTYPE MEANS OVER BOTH SEASONS AS THE UNIT (31 units)")
 print("=" * 100, flush=True)
@@ -249,9 +207,6 @@ for d in geno_designs:
             "spearman"]].head(8).to_string(index=False,
                                            float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# 4. RANK METRICS FOR THE DECISION THAT IS ACTUALLY MADE
-# ===========================================================================
 print("\n" + "=" * 100)
 print("4. RANK AGREEMENT — the quantity a selection decision depends on")
 print("=" * 100, flush=True)

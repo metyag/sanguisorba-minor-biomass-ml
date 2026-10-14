@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Common setup module for the revision analyses.
-
-Provides: data loading, English trait names, model zoo (17 models),
-metrics, and cross-validation splitters (random / grouped / LOGO / LOYO).
-"""
 import os
 import numpy as np
 import pandas as pd
@@ -35,9 +28,6 @@ except Exception:
 SEED = 42
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# The plant-level data file is not distributed with the code; it is available
-# from the corresponding author on reasonable request. Place it
-# at data/plant_records.xlsx or set the environment variable BURNET_DATA.
 DATA_PATH = os.environ.get("BURNET_DATA",
                            os.path.join(HERE, "data", "plant_records.xlsx"))
 RESULTS_DIR = os.path.join(HERE, "results")
@@ -46,9 +36,6 @@ TAB_DIR = os.path.join(RESULTS_DIR, "tables")
 for d in (RESULTS_DIR, FIG_DIR, TAB_DIR):
     os.makedirs(d, exist_ok=True)
 
-# ---------------------------------------------------------------
-# Turkish column names -> English names used in the manuscript
-# ---------------------------------------------------------------
 TR2EN = {
     "yıl": "Year",
     "genotip": "Genotype",
@@ -75,13 +62,6 @@ MORPH_FEATURES = [
 FULL_FEATURES = [YEAR, GENOTYPE] + MORPH_FEATURES
 YEARGEN_FEATURES = [YEAR, GENOTYPE]
 
-# ---------------------------------------------------------------
-# The adopted cell-level model, named in one place so that no script
-# can drift from another.  Huber regression is a robust loss, which is
-# what the structure of the records indicated before any model was
-# fitted; ordinary ridge regression is carried alongside as the
-# non-robust reference so the choice stays visible to the reader.
-# ---------------------------------------------------------------
 FINAL_MODEL_NAME = "Huber"
 REFERENCE_MODEL_NAME = "Ridge"
 FINAL_TARGET = "log"
@@ -95,14 +75,6 @@ FEATURE_SETS = {
 
 
 def load_data():
-    """Load the Excel file, rename the columns to English and return
-
-        df           the full frame, English column names
-        y            the response, float array
-        groups_cell  genotype x year cell label, one per record
-        groups_geno  genotype label, one per record
-        groups_year  season label, one per record
-    """
     if not os.path.exists(DATA_PATH):
         raise SystemExit(
             "Data file not found:\n  %s\n\n"
@@ -127,25 +99,13 @@ def load_data():
     df = df.dropna(subset=[TARGET_EN]).reset_index(drop=True)
 
     y = df[TARGET_EN].astype(float).values
-    # Grouping variables
-    groups_cell = (df[YEAR].astype(str) + "_" + df[GENOTYPE].astype(str)).values  # genotype × year cell
-    groups_geno = df[GENOTYPE].astype(str).values                                  # genotype (both years)
-    groups_year = df[YEAR].astype(str).values                                      # year
+    groups_cell = (df[YEAR].astype(str) + "_" + df[GENOTYPE].astype(str)).values
+    groups_geno = df[GENOTYPE].astype(str).values
+    groups_year = df[YEAR].astype(str).values
     return df, y, groups_cell, groups_geno, groups_year
 
 
-# ---------------------------------------------------------------
-# Preprocessing
-# ---------------------------------------------------------------
 def make_preprocessor(features, genotype_categorical=True):
-    """
-    Build a ColumnTransformer for the given feature list.
-
-    genotype_categorical=True  -> Genotype is one-hot encoded (statistically correct:
-                                  the 31 genotype codes are nominal labels, not a scale).
-    genotype_categorical=False -> Genotype is kept as an integer code and scaled,
-                                  which is what the ORIGINAL submitted analysis did.
-    """
     cat_cols = [GENOTYPE] if (genotype_categorical and GENOTYPE in features) else []
     num_cols = [c for c in features if c not in cat_cols]
 
@@ -161,18 +121,12 @@ def make_preprocessor(features, genotype_categorical=True):
         transformers.append((
             "cat",
             Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
-                      # sparse_output=False: HistGradientBoosting cannot consume
-                      # a sparse matrix, and dense output keeps every estimator on
-                      # exactly the same input representation.
                       ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))]),
             cat_cols,
         ))
     return ColumnTransformer(transformers=transformers, remainder="drop")
 
 
-# ---------------------------------------------------------------
-# Metrics
-# ---------------------------------------------------------------
 def mape(y_true, y_pred, eps=1e-8):
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
@@ -188,9 +142,6 @@ SCORING = {
 }
 
 
-# ---------------------------------------------------------------
-# Model zoo — identical hyper-parameters to the original submission
-# ---------------------------------------------------------------
 def build_models():
     models = {
         "Linear": LinearRegression(),
@@ -249,11 +200,7 @@ def make_pipeline(model, features, genotype_categorical=True):
     ])
 
 
-# ---------------------------------------------------------------
-# Cross-validation schemes
-# ---------------------------------------------------------------
 class LeaveOneYearOut:
-    """2-fold splitter: train on one year, test on the other (and vice versa)."""
 
     def __init__(self, groups_year):
         self.groups_year = np.asarray(groups_year)
@@ -269,7 +216,6 @@ class LeaveOneYearOut:
 
 
 def cv_schemes(groups_cell, groups_geno, groups_year):
-    """Return dict name -> (splitter, groups_array, short_code)."""
     return {
         "A. Random 5-fold (plant level) [as originally submitted]":
             (KFold(n_splits=5, shuffle=True, random_state=SEED), None, "random"),

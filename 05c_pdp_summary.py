@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Numerical summary of the partial-dependence curves of Figure 12.
-
-Section 3.9 described these curves in words and the six numbers it quoted (the
-break points in centimetres and the vertical span in grams) were typed in by
-hand: 05_figures.py and 05b_remaining_figures.py draw the curves but write no
-table, so there was nothing to check them against. Two of the statements were
-wrong when the curves were recomputed — neither the plant-height curve nor the
-leaf-length curve is monotone increasing.
-
-This script recomputes the same curves with the same estimator, the same feature
-set and the same preprocessing as the figure, and writes the quantities the text
-quotes to results/tables/05_pdp_summary.json so that Section 3.9 reads them
-instead of asserting them.
-"""
 import json
 import os
 import sys
@@ -29,10 +14,8 @@ OZELLIKLER = ["Plant height", "Leaf length"]
 
 
 def _egri_ozeti(g, v):
-    """Everything Section 3.9 says about a curve, computed from the curve."""
     d = np.diff(v)
     artis = np.flatnonzero(d > 0)
-    # steepest stretch: the window of five consecutive steps with the largest rise
     pencere = 5
     if len(d) >= pencere:
         toplam = np.convolve(d, np.ones(pencere), mode="valid")
@@ -40,7 +23,6 @@ def _egri_ozeti(g, v):
         dik = (float(g[i]), float(g[i + pencere]))
     else:
         dik = (float(g[0]), float(g[-1]))
-    # flattest stretch of the same width
     if len(d) >= pencere:
         j = int(np.argmin(np.abs(np.convolve(d, np.ones(pencere), mode="valid"))))
         duz = (float(g[j]), float(g[j + pencere]))
@@ -67,7 +49,6 @@ def main():
     X = df[MORPH_FEATURES].astype(float)
     y = df[TARGET_EN].values.astype(float)
 
-    # Same estimator and preprocessing as Figure 12.
     pipe = make_pipeline(build_models()["ExtraTrees"], MORPH_FEATURES,
                          genotype_categorical=True)
     pipe.fit(X, y)

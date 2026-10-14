@@ -1,23 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-03 — Feature-contribution analysis repeated under BOTH validation designs.
-
-Reviewer 1 asked for a model built on genuine morphological traits only, and both
-reviewers asked whether the forward-selection result is an artefact of the
-validation strategy. This script therefore repeats every feature-contribution
-analysis under:
-   A. random 5-fold CV      (the original, leakage-prone design)
-   B. GroupKFold by genotype x year cell (leakage-free design)
-and for the FULL and MORPH-ONLY feature sets.
-
-Outputs (results/tables/):
-  03_univariate_r2.csv
-  03_forward_selection.csv
-  03_rf_importance.csv
-  03_permutation_importance.csv
-  03_oof_predictions_<tag>.csv
-  03_diagnostics.json
-"""
 import sys, os, json, warnings
 import numpy as np
 import pandas as pd
@@ -47,9 +27,6 @@ print("=" * 90)
 print("03 — FEATURE-CONTRIBUTION ANALYSIS UNDER RANDOM vs GROUPED CV")
 print("=" * 90)
 
-# ---------------------------------------------------------------
-# 1) Univariate R2
-# ---------------------------------------------------------------
 print("\n### 1) Univariate R2 (each feature used alone, ExtraTrees)")
 uni_rows = []
 for dname, (splitter, grp) in DESIGNS.items():
@@ -70,9 +47,6 @@ for dname in DESIGNS:
     print(sub[["Feature", "R2_mean", "R2_sd", "MAE", "MAPE"]].to_string(
         index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# 2) Forward feature selection
-# ---------------------------------------------------------------
 print("\n\n### 2) Forward feature selection")
 fwd_all = []
 for dname, (splitter, grp) in DESIGNS.items():
@@ -109,9 +83,6 @@ for dname, (splitter, grp) in DESIGNS.items():
 fwd = pd.concat(fwd_all, ignore_index=True)
 fwd.to_csv(os.path.join(TAB_DIR, "03_forward_selection.csv"), index=False)
 
-# ---------------------------------------------------------------
-# 3) Random Forest impurity importance (fit on full data)
-# ---------------------------------------------------------------
 print("\n\n### 3) Random Forest impurity-based importance")
 rf_rows = []
 for sname, feats in SETS.items():
@@ -140,10 +111,6 @@ for sname in SETS:
     print(f"\n-- {sname} --")
     print(sub[["Feature", "RF importance"]].to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# 4) Permutation importance — computed on HELD-OUT folds of the grouped design
-#    (the original computed it on the training data itself, which inflates it)
-# ---------------------------------------------------------------
 print("\n\n### 4) Permutation importance on held-out folds")
 perm_rows = []
 for dname, (splitter, grp) in DESIGNS.items():
@@ -173,9 +140,6 @@ for dname in DESIGNS:
         print(sub[["Feature", "Permutation dR2_mean", "Permutation dR2_sd"]]
               .to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# 5) Out-of-fold predictions + agreement diagnostics
-# ---------------------------------------------------------------
 print("\n\n### 5) Out-of-fold predictions and Bland-Altman agreement")
 diag = {}
 for dname, (splitter, grp) in DESIGNS.items():
@@ -203,9 +167,6 @@ for dname, (splitter, grp) in DESIGNS.items():
               f"MAPE={d['MAPE']:.2f}%  bias={d['BlandAltman_mean_difference']:+.2f}  "
               f"LoA=[{d['BlandAltman_LoA_lower']:.2f}, {d['BlandAltman_LoA_upper']:.2f}]")
 
-# ---------------------------------------------------------------
-# 6) Pearson correlation matrix (English labels)
-# ---------------------------------------------------------------
 corr_cols = FULL_FEATURES + [TARGET_EN]
 corr = df[corr_cols].corr(method="pearson")
 corr.to_csv(os.path.join(TAB_DIR, "03_correlation_matrix.csv"))

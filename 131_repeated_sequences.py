@@ -1,21 +1,3 @@
-# -*- coding: utf-8 -*-
-"""131 - How many DISTINCT values the repeated nine-record sequences carry.
-
-Section 3.4 reports that different cells carry the same nine values exactly, and
-concludes from this that independent field measurement does not produce the same nine
-numbers twice. That inference is weak where a sequence is nearly constant (for example
-where all nine values are the same): repeating such a sequence in another cell is not
-surprising.
-
-Using the SAME rule as 26_data_audit.py (for each trait, the first nine records of a
-cell, rounded to six decimals), this script splits the repeated sequences by how many
-distinct values they carry and writes them to file. The totals of 26 are reproduced
-(496 / 218); the script fails otherwise.
-
-Output: results/tables/131_repeated_sequences.csv
-  DistinctValues, Combinations, Sharing   (Sharing = the number whose sequence
-  also appears in at least one other cell)
-"""
 import io
 import json
 import os
@@ -28,7 +10,7 @@ KOK = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, KOK)
 os.chdir(KOK)
 sys.stdout.reconfigure(encoding="utf-8")
-from common_setup import GENOTYPE, MORPH_FEATURES, TAB_DIR, YEAR, load_data  # noqa: E402
+from common_setup import GENOTYPE, MORPH_FEATURES, TAB_DIR, YEAR, load_data
 
 df, _, _, _, _ = load_data()
 h = df[GENOTYPE].astype(str) + "/" + df[YEAR].astype(str)

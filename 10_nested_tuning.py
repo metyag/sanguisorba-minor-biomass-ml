@@ -1,23 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-10 — Nested hyper-parameter tuning of the shortlist, and confirmation of the
-     winning configuration under the two harder designs.
-
-The submitted analysis performed no tuning at all. Here the tuning is done with an
-INNER GroupKFold over the training folds only, so the search never sees a cell that
-is in the outer held-out fold. This is the standard nested protocol; it is more
-expensive than a single search but it is the only version that does not reintroduce
-leakage through the hyper-parameters.
-
-Runs:
-  (1) Nested tuning on the best feature set / target found by script 09, evaluated
-      under GroupKFold blocked on the genotype x year cell.
-  (2) The tuned winner re-evaluated under leave-one-genotype-out and
-      leave-one-year-out, so the cost of the season covariate is visible.
-
-Outputs (results/tables/):
-  10_tuned_results.csv, 10_final_scenarios.csv, 10_summary.json
-"""
 import sys, os, json, time, warnings
 import numpy as np
 import pandas as pd
@@ -62,7 +42,6 @@ def add_engineered(frame):
 
 DF = add_engineered(df)
 
-# --- read the winner of script 09 -----------------------------------------
 BEST09 = pd.read_csv(os.path.join(TAB_DIR, "09_improvement_best.csv"))
 BEST09 = BEST09.sort_values("pooled_R2", ascending=False).reset_index(drop=True)
 WIN_FS = str(BEST09.loc[0, "Feature set"])
@@ -168,13 +147,6 @@ def nested(reg, grid, splitter, groups, n_iter=30, inner_splits=4):
 schemes = cv_schemes(groups_cell, groups_geno, groups_year)
 
 def _design(schemes, short_code):
-    """Select a design from the output of cv_schemes by its short code.
-
-    The long name is a display string and may change (for example 'x' -> '×');
-    the short code ('random', 'groupcell', 'logo', 'loyo') is the identity of the
-    design. Looking the design up by name broke silently with a KeyError whenever
-    the name changed.
-    """
     for _name, value in schemes.items():
         if value[2] == short_code:
             return value
@@ -206,9 +178,6 @@ print("TUNED RANKING (GroupKFold by genotype x year cell)")
 print("=" * 100)
 print(ok.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------------------
-# The winner under the two harder designs
-# ---------------------------------------------------------------------------
 win_name = str(ok.iloc[0]["Model"])
 win_reg, win_grid = SEARCH[win_name]
 print("\n" + "=" * 100)

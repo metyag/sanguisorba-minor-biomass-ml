@@ -1,53 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-09 — Can the leakage-free performance be improved by better MODELLING?
-
-The evaluation stays leakage-free throughout (whole genotype x year cells are held
-out). What is varied is the model, not the yardstick. Four levers are tested, each
-of which is standard practice in biomass modelling and defensible to a reviewer:
-
-  LEVER 1  Target transformation.
-           Fresh weight spans 55.96-820.30 g and its error scales with plant size
-           (the residual plot of the submitted model is funnel-shaped). Biomass is
-           multiplicative in nature, so log(weight) is the natural scale. Metrics
-           are always computed after back-transformation, on the original gram
-           scale, so they remain comparable with everything reported so far.
-
-  LEVER 2  Allometric feature engineering.
-           Biomass is proportional to volume. Five biologically motivated
-           quantities are derived from the measured traits:
-             stem volume proxy   = pi * (diameter/2)^2 * height * number of stems
-             leaf area proxy     = leaves * leaflets per leaf * leaflet L * leaflet W
-             height x stems      = height * number of main stems
-             total leaf length   = leaves * leaf length
-             height squared      = height^2
-           These are functions of the measured traits only; no new information and
-           no identity variable enters the model.
-
-  LEVER 3  Season as an environmental covariate.
-           Under GroupKFold both seasons appear in every training fold, and the
-           permutation importance of year does NOT collapse (0.832 under the grouped
-           design, Section 3.5). Year is therefore a genuinely transferable
-           environmental covariate in this design, unlike genotype, whose importance
-           falls from 0.575 to 0.245. Including year while EXCLUDING genotype is the
-           standard multi-environment-trial formulation: environment is a known
-           covariate, variety identity is not used as a lookup key. The cost is that
-           the model applies only to observed seasons, which is quantified by the
-           leave-one-year-out result reported alongside.
-
-  LEVER 4  Hyper-parameter tuning inside a nested grouped design.
-           The submitted analysis performed none. Tuning is done with an INNER
-           GroupKFold over the training folds only, so no information about the
-           held-out cells reaches the search.
-
-Levers 1-3 are swept exhaustively here; lever 4 is applied to the shortlist in
-script 10. Nothing is hidden: every combination is written out.
-
-Outputs (results/tables/):
-  09_improvement_matrix.csv   every model x feature set x target transform
-  09_improvement_best.csv     best model per configuration
-  09_improvement_summary.json
-"""
 import sys, os, json, time, warnings
 import numpy as np
 import pandas as pd
@@ -63,9 +13,6 @@ pd.set_option("display.width", 250)
 
 df, y, groups_cell, groups_geno, groups_year = load_data()
 
-# ---------------------------------------------------------------------------
-# Engineered allometric features
-# ---------------------------------------------------------------------------
 ENG_NAMES = ["Stem volume proxy", "Leaf area proxy", "Height x stems",
              "Total leaf length", "Height squared"]
 
@@ -116,7 +63,6 @@ def wrap_target(reg, transform):
 
 
 def evaluate(reg, features, transform, splitter, groups, frame):
-    """Pooled out-of-fold metrics on the ORIGINAL gram scale."""
     X = frame[features]
     oof = np.full(len(y), np.nan)
     per_fold = []
@@ -142,13 +88,6 @@ def evaluate(reg, features, transform, splitter, groups, frame):
 schemes = cv_schemes(groups_cell, groups_geno, groups_year)
 
 def _design(schemes, short_code):
-    """Select a design from the output of cv_schemes by its short code.
-
-    The long name is a display string and may change (for example 'x' -> '×');
-    the short code ('random', 'groupcell', 'logo', 'loyo') is the identity of the
-    design. Looking the design up by name broke silently with a KeyError whenever
-    the name changed.
-    """
     for _name, value in schemes.items():
         if value[2] == short_code:
             return value
@@ -186,7 +125,6 @@ full.to_csv(os.path.join(TAB_DIR, "09_improvement_matrix.csv"), index=False)
 ok = full[full.Status == "ok"].copy()
 print(f"\nElapsed {time.time()-t0:.0f} s;  failures: {int((full.Status!='ok').sum())}")
 
-# ---------------------------------------------------------------------------
 print("\n" + "=" * 100)
 print("BEST MODEL PER CONFIGURATION (pooled out-of-fold, GroupKFold by cell)")
 print("=" * 100)
@@ -200,7 +138,6 @@ for _, r in best.iterrows():
           f"{r['pooled_R2']:>9.4f}{r['pooled_RMSE']:>9.2f}{r['pooled_MAE']:>9.2f}"
           f"{r['pooled_MAPE']:>8.2f}")
 
-# ---------------------------------------------------------------------------
 print("\n" + "=" * 100)
 print("EFFECT OF EACH LEVER (best model in each cell)")
 print("=" * 100)

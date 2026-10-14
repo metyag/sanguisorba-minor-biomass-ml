@@ -1,33 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-18 — The wide sweep: every estimator x every data view x every target transform.
-
-Two questions are asked here.
-
-(a) DATA INTEGRITY.  Before adding any more modelling machinery it is worth
-    establishing what the 620 plant records actually are.  Two structural
-    features are measured and reported: whether the nine first records of each
-    genotype x year cell are ordered rather than independently sampled, and
-    whether the tenth record behaves like the other nine.  Both are reported as
-    counts, without any assumption about their cause.
-
-(b) MODEL SPACE.  The sweep adds three things the earlier scripts did not have:
-    the log-log parameterisation that a power law actually implies (logarithms
-    of the *predictors* as well as of the response), four further target
-    transforms including a fitted Yeo-Johnson and Box-Cox, and several estimator
-    families that were missing (CatBoost, monotone-constrained gradient
-    boosting, generalised additive models, robust and quantile regression).
-
-The sweep is scored under grouped five-fold over cells, which is cheap; the
-shortlist is then re-scored under leave-one-cell-out, leave-one-genotype-out and
-leave-one-year-out.  Nothing here is a headline number: the maximum of a search
-this wide is optimistically biased by construction, and script 21 measures that
-bias by putting the whole search inside the validation loop.
-
-Outputs (results/tables/):
-  18_integrity.csv, 18_integrity.json, 18_sweep_cell.csv,
-  18_sweep_shortlist.csv, 18_summary.json
-"""
 import json
 import os
 import sys
@@ -50,9 +20,6 @@ print("=" * 100)
 print("18 — WIDE SWEEP OVER THE FULL ARSENAL")
 print("=" * 100, flush=True)
 
-# ===========================================================================
-# (a) DATA INTEGRITY
-# ===========================================================================
 PLANT, CELL, GENO = build_frames(exclude_last_plant=False)
 PLANT9, CELL9, GENO9 = build_frames(exclude_last_plant=True)
 
@@ -92,7 +59,6 @@ print("\n(a) DATA INTEGRITY — structure of the ten records within each cell")
 print("-" * 100)
 print(integ.to_string(index=False, float_format=lambda v: f"{v:.2f}"))
 
-# probability that a genuinely random sample of nine is monotone
 p_mono = 1.0 / np.math.factorial(9) if hasattr(np, "math") else 1.0 / 362880
 integ_json = {
     "n_cells": int(n_cells),
@@ -113,9 +79,6 @@ print(f"  Effect of record 10 on the cell mean, per cent:")
 for t in ALL_TRAITS:
     print(f"    {t:32} {integ_json['mean_shift_in_cell_mean_from_record10_pct'][t]:6.2f}")
 
-# ===========================================================================
-# (b) THE SWEEP
-# ===========================================================================
 yc = CELL[TARGET_EN].values.astype(float)
 g_cell = (CELL[YEAR].astype(str) + "_" + CELL[GENOTYPE].astype(str)).values
 g_geno = CELL[GENOTYPE].astype(str).values
@@ -169,9 +132,6 @@ print(fam[["Family", "Model", "View", "Target", "pooled_R2", "pooled_MAE"]]
       .to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 fam.to_csv(os.path.join(TAB_DIR, "18_best_by_family.csv"), index=False)
 
-# The manuscript quotes how far the last family trails the first. That is a
-# difference of two numbers in the table above rather than a number in it, so
-# the document verifier cannot trace it unless it is written out here.
 pd.DataFrame([
     {"Quantity": f"{fam.iloc[0].Family} minus {fam.iloc[-1].Family}, grouped five-fold",
      "Value": float(fam.iloc[0].pooled_R2 - fam.iloc[-1].pooled_R2)},
@@ -193,9 +153,6 @@ bytgt = (ok.sort_values("pooled_R2", ascending=False)
 print(bytgt[["Target", "Model", "View", "pooled_R2", "pooled_MAE"]]
       .to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ===========================================================================
-# (c) SHORTLIST UNDER THE EXPENSIVE DESIGNS
-# ===========================================================================
 SHORT = ok.sort_values("pooled_R2", ascending=False).head(15)
 DESIGNS = {
     "LOCO leave-one-cell-out (62)": GroupOut(g_cell),
@@ -237,9 +194,6 @@ for d in DESIGNS:
                                               float_format=lambda v: f"{v:.4f}"))
     print()
 
-# ===========================================================================
-# (d) THE SAME SWEEP WITHOUT RECORD 10, AS A SENSITIVITY ANALYSIS
-# ===========================================================================
 print("=" * 100)
 print("(d) SENSITIVITY — the top 15 configurations refitted on records 1-9 only")
 print("=" * 100, flush=True)

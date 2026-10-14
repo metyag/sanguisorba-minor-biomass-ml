@@ -1,35 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-candidates.py — every modelling strategy expressed through one interface.
-
-A candidate is a callable
-
-    fit_predict(train_cell_idx, test_cell_idx) -> predictions for the test cells
-
-where the indices refer to rows of the cell-level frame.  Expressing the plain
-cell-level regressions, the bottom-up plant-level aggregators, the augmented
-fits and the blends in the same form is what allows script 21 to place the whole
-search inside a validation loop: the nested run and the exploratory run call
-exactly the same code.
-
-Everything a candidate needs about the held-out cells is limited to their
-*predictors*.  No candidate ever touches the response of a test cell, and the
-aggregating candidates use only the trait measurements of the held-out plants,
-which in the intended use of the model are observed before any plant is cut.
-
-Four strategy groups are provided.
-
-  A. DIRECT      one row per cell, the response is the cell mean.
-  B. BOTTOM-UP   fitted on individual plants of the training cells; the
-                 prediction for a held-out cell is the mean of its plants'
-                 predicted weights.  This trains on ten times as many rows.
-  C. AUGMENTED   fitted on the training cells plus synthetic cells generated
-                 from them by resampling plants, by leaving one plant out, or
-                 by convex interpolation between cells (mixup).
-  D. BLENDS      convex combinations of the above, with weights either fixed or
-                 estimated on an inner grouped cross-validation of the
-                 training cells only.
-"""
 import numpy as np
 import pandas as pd
 from sklearn.impute import SimpleImputer
@@ -40,11 +8,7 @@ from arsenal import GroupKFoldArray, view_columns, wrap_target
 from common_setup import GENOTYPE, SEED, TARGET_EN, YEAR
 
 
-# ---------------------------------------------------------------------------
-# shared state, set once by the calling script
-# ---------------------------------------------------------------------------
 class Context:
-    """Holds the frames and index maps that the candidates close over."""
 
     def __init__(self, PLANT, CELL):
         self.PLANT = PLANT.reset_index(drop=True)
@@ -55,7 +19,6 @@ class Context:
         key_p = (self.PLANT[YEAR].astype(str) + "_" + self.PLANT[GENOTYPE].astype(str)).values
         self.cell_key = key_c
         self.plant_key = key_p
-        # rows of PLANT belonging to each cell row of CELL
         self.rows_of_cell = [np.where(key_p == k)[0] for k in key_c]
         self.g_cell = key_c
         self.g_geno = self.CELL[GENOTYPE].astype(str).values
@@ -70,9 +33,6 @@ def _pipe(reg, target, standardise=True):
     return Pipeline(steps)
 
 
-# ===========================================================================
-# A. DIRECT — the cell-level regression used in scripts 12-15
-# ===========================================================================
 def direct(ctx, model_name, view, target, pool):
     cols = view_columns(view)
     Xc = ctx.CELL[cols].astype(float)
@@ -85,21 +45,7 @@ def direct(ctx, model_name, view, target, pool):
     return fit_predict
 
 
-# ===========================================================================
-# B. BOTTOM-UP — fit on plants, average the predictions of a cell's plants
-# ===========================================================================
 def bottom_up(ctx, model_name, view, target, pool, aggregate="mean_of_predictions"):
-    """
-    aggregate = "mean_of_predictions"
-        predict each plant of the held-out cell, then average.  This is what a
-        breeder would do: the traits of the ten plants are measured
-        non-destructively, and only the weights are unknown.
-
-    aggregate = "prediction_of_means"
-        apply the plant-level model to the cell's mean traits.  The two differ
-        whenever the model is non-linear (Jensen's inequality), and comparing
-        them measures how much that curvature matters here.
-    """
     cols = view_columns(view)
     Xp = ctx.PLANT[cols].astype(float)
     Xc = ctx.CELL[cols].astype(float)
@@ -119,11 +65,7 @@ def bottom_up(ctx, model_name, view, target, pool, aggregate="mean_of_prediction
     return fit_predict
 
 
-# ===========================================================================
-# C. AUGMENTED — synthetic training cells built from the training cells only
-# ===========================================================================
 def _bootstrap_cells(ctx, tr, cols, n_aug, rng, size=None):
-    """Resample the plants of each training cell with replacement."""
     Xp = ctx.PLANT[cols].astype(float).values
     yp = ctx.y_plant
     Xs, ys = [], []
@@ -138,7 +80,6 @@ def _bootstrap_cells(ctx, tr, cols, n_aug, rng, size=None):
 
 
 def _jackknife_cells(ctx, tr, cols):
-    """Leave one plant out of each training cell: ten near-replicates per cell."""
     Xp = ctx.PLANT[cols].astype(float).values
     yp = ctx.y_plant
     Xs, ys = [], []
@@ -152,13 +93,6 @@ def _jackknife_cells(ctx, tr, cols):
 
 
 def _mixup_cells(ctx, tr, cols, n_aug, rng, alpha=0.4, c_mixup=False, bw=0.5):
-    """
-    Convex interpolation between pairs of training cells.
-
-    c_mixup=True restricts the partner to cells with a similar response, which
-    is the regression-specific variant: interpolating between a 100 g cell and
-    an 800 g cell asserts a linearity the data need not have.
-    """
     Xc = ctx.CELL[cols].astype(float).values[tr]
     yc = ctx.y_cell[tr]
     n = len(tr)
@@ -181,7 +115,6 @@ def _mixup_cells(ctx, tr, cols, n_aug, rng, alpha=0.4, c_mixup=False, bw=0.5):
 
 
 def _noise_cells(ctx, tr, cols, n_aug, rng, scale=1.0):
-    """Add Gaussian noise scaled by each cell's own within-cell standard error."""
     Xp = ctx.PLANT[cols].astype(float).values
     Xc = ctx.CELL[cols].astype(float).values
     yc = ctx.y_cell
@@ -227,18 +160,7 @@ def augmented(ctx, model_name, view, target, pool, scheme, n_aug=20,
     return fit_predict
 
 
-# ===========================================================================
-# D. BLENDS
-# ===========================================================================
 def residual_hybrid(ctx, base_name, resid_name, view, target, pool):
-    """
-    Fit the structural model first, then a flexible learner on what it leaves.
-
-    The power law captures how biomass scales with size; anything systematic
-    that remains is by definition not a power law, and a small tree ensemble is
-    a reasonable way to look for it.  If the residual stage adds nothing, that
-    is itself evidence that the allometric form is adequate.
-    """
     cols = view_columns(view)
     Xc = ctx.CELL[cols].astype(float)
 
@@ -255,7 +177,6 @@ def residual_hybrid(ctx, base_name, resid_name, view, target, pool):
 
 
 def blend_median(members):
-    """Element-wise median of the members: a blend that ignores a single outlier."""
 
     def fit_predict(tr, te):
         return np.median(np.vstack([m(tr, te) for m in members]), axis=0)
@@ -264,7 +185,6 @@ def blend_median(members):
 
 
 def blend_fixed(members, weights=None):
-    """Fixed convex combination of already-built candidates."""
     w = np.ones(len(members)) / len(members) if weights is None else np.asarray(weights,
                                                                                dtype=float)
     w = w / w.sum()
@@ -277,11 +197,6 @@ def blend_fixed(members, weights=None):
 
 
 def blend_learned(ctx, member_specs, build, n_splits=5, seed=SEED, nonneg=True):
-    """
-    Convex combination whose weights are estimated on an inner grouped
-    cross-validation of the *training* cells only, by non-negative least
-    squares.  The weights therefore never see a held-out cell.
-    """
     from scipy.optimize import nnls
 
     def fit_predict(tr, te):
@@ -312,22 +227,7 @@ def blend_learned(ctx, member_specs, build, n_splits=5, seed=SEED, nonneg=True):
     return fit_predict
 
 
-# ===========================================================================
-# specification -> candidate
-# ===========================================================================
 def build_candidate(ctx, spec, pool):
-    """
-    spec is a tuple whose first element names the strategy:
-
-      ("direct",    model, view, target)
-      ("bottomup",  model, view, target)
-      ("bottomup_pm", model, view, target)
-      ("aug",       model, view, target, scheme, n_aug)
-      ("resid",     base_model, residual_model, view, target)
-      ("blend",     [spec, spec, ...])
-      ("blendmed",  [spec, spec, ...])
-      ("blendfit",  [spec, spec, ...])
-    """
     kind = spec[0]
     if kind == "direct":
         return direct(ctx, spec[1], spec[2], spec[3], pool)
@@ -365,7 +265,6 @@ def spec_label(spec):
 
 
 def run_candidate(ctx, spec, pool, splitter):
-    """Pooled out-of-fold predictions for one candidate under one design."""
     fp = build_candidate(ctx, spec, pool)
     oof = np.full(len(ctx.y_cell), np.nan)
     for tr, te in splitter.split():

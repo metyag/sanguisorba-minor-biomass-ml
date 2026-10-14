@@ -1,42 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-02 — THE CORE REVISION ANALYSIS.
-
-Answers Reviewer 1 (Q1), Reviewer 2 (Q2, Q3) and the Editor's leakage comment by
-re-evaluating all 17 models under four validation designs and three feature sets.
-
-Validation designs
-  A. Random 5-fold CV at the individual-plant level   [as originally submitted]
-  B. GroupKFold by genotype x year cell (62 groups)   [no pseudo-replicate leakage]
-  C. Leave-One-Genotype-Out (31 folds)                [generalisation to a NEW genotype]
-  D. Leave-One-Year-Out (2 folds)                     [generalisation to a NEW season]
-
-Feature sets
-  FULL       : year + genotype + 8 morphological traits
-  MORPH-ONLY : the 8 morphological traits (the non-destructive, deployable model)
-  YEAR+GEN   : the two identifiers alone (the 99.35% claim under scrutiny)
-
-METRIC CONVENTION
-  Under Leave-One-Genotype-Out each held-out fold contains a single genotype, whose
-  within-fold variance in fresh plant weight is very small. A per-fold R2 is
-  therefore numerically unstable (its denominator nearly vanishes) and can take
-  large negative values that say more about the fold than about the model. All
-  designs are consequently summarised with POOLED out-of-fold metrics: every
-  observation is predicted exactly once while held out, the 620 predictions are
-  pooled, and one R2/MSE/MAE/MAPE is computed on the pooled set. Per-fold means
-  and standard deviations are also reported for completeness.
-
-Genotype is one-hot encoded (nominal), which is the statistically correct treatment.
-A sensitivity run with genotype kept as an integer code (the original treatment)
-is included for design A so the two can be compared directly.
-
-Outputs (results/tables/):
-  02_validation_matrix_full.csv    — every model x design x feature set
-  02_validation_summary.csv        — compact table for the manuscript
-  02_optimism_gap.csv              — random-CV optimism per model
-  02_genotype_encoding_check.csv   — one-hot vs integer-code sensitivity
-  02_headline_numbers.json         — verified numbers for the manuscript text
-"""
 import sys, os, json, time, warnings
 import numpy as np
 import pandas as pd
@@ -65,7 +26,6 @@ print("Primary metric: POOLED out-of-fold R2 (see module docstring).")
 
 
 def evaluate(pipe, X, yv, splitter, groups):
-    """Fit/predict over the splitter; return pooled and per-fold metrics."""
     oof = np.full(len(yv), np.nan)
     per_fold = []
     n_folds = 0
@@ -147,9 +107,6 @@ if n_failed:
     print(full[full["Status"] != "ok"][["Feature set", "Validation design", "Model", "Status"]]
           .to_string(index=False))
 
-# ---------------------------------------------------------------
-# Compact summary: pooled R2 by design
-# ---------------------------------------------------------------
 ok = full[full["Status"] == "ok"].copy()
 piv = ok.pivot_table(index=["Feature set", "Model"], columns="design_code",
                      values="pooled_R2", aggfunc="first")
@@ -172,21 +129,11 @@ print(gap[["A. Random 5-fold", "B. GroupKFold (cell)", "Optimism (A - B)"]]
       .sort_values("Optimism (A - B)", ascending=False)
       .to_string(float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# Genotype encoding sensitivity (design A, full feature set)
-# ---------------------------------------------------------------
 print("\n" + "=" * 92)
 print("SENSITIVITY: genotype one-hot encoded vs kept as an integer code (design A)")
 print("=" * 92)
 
 def _design(schemes, short_code):
-    """Select a design from the output of cv_schemes by its short code.
-
-    The long name is a display string and may change (for example 'x' -> '×');
-    the short code ('random', 'groupcell', 'logo', 'loyo') is the identity of the
-    design. Looking the design up by name broke silently with a KeyError whenever
-    the name changed.
-    """
     for _name, value in schemes.items():
         if value[2] == short_code:
             return value
@@ -207,9 +154,6 @@ for m_name, reg in models.items():
           f"integer = {row['pooled R2 (integer code)']:.4f}   diff = {row['Difference']:+.4f}")
 pd.DataFrame(enc_rows).to_csv(os.path.join(TAB_DIR, "02_genotype_encoding_check.csv"), index=False)
 
-# ---------------------------------------------------------------
-# Headline numbers
-# ---------------------------------------------------------------
 def pack(r):
     return {"model": r["Model"],
             "pooled_R2": float(r["pooled_R2"]), "pooled_MAE": float(r["pooled_MAE"]),

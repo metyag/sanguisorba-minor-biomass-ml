@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-25 — Figures for the expanded search (scripts 18-24).
-
-Regenerates Figures 20-23 for the model that the expanded search selected, and
-adds Figures 24-27 for the results that had no figure before: the selection
-ladder, the strategy comparison, the exhaustive subset search and the conformal
-prediction intervals.
-
-House style: 400 dpi, white background, black text, English labels, the
-Okabe-Ito colour-blind-safe palette, and no colour used to carry information
-that is not also carried by position or label.
-"""
 import json
 import os
 import sys
@@ -32,8 +19,6 @@ plt.rcParams.update({
     "savefig.facecolor": "white", "font.family": "DejaVu Sans", "font.size": 11,
     "axes.titlesize": 12.5, "axes.titleweight": "bold", "axes.titlecolor": "black",
     "axes.labelsize": 11.5, "axes.labelcolor": "black",
-    # The Editor was promised axis and tick labels of at least 11 pt; this script
-    # was producing 10 pt, so the promise was not being kept for its figures.
     "xtick.labelsize": 11, "ytick.labelsize": 11,
     "xtick.color": "black", "ytick.color": "black", "text.color": "black",
     "legend.fontsize": 10, "axes.edgecolor": "black", "axes.linewidth": 1.0,
@@ -65,15 +50,10 @@ FINAL = J("23_final_model.json")
 MODEL = FINAL["model"]
 print("Figures for the final model:", MODEL)
 
-# ===========================================================================
-# Figure 20 — agreement diagnostics
-# ===========================================================================
 oof = T("23_oof_C_leaveonecellout.csv")
 fx = T("23_fixed_models.csv")
 row = fx[(fx.Model == MODEL) & (fx.Design == "Leave-one-cell-out (62 outer folds)")].iloc[0]
 
-# the fixed-model out-of-fold predictions, recomputed here so the figure and the
-# table cannot drift apart
 from arsenal import GroupOut, build_frames, build_pool, evaluate
 from common_setup import GENOTYPE, TARGET_EN, YEAR
 
@@ -146,9 +126,6 @@ fig.suptitle(f"Final model — {MODEL} regression of log fresh plant weight on t
 fig.tight_layout()
 save(fig, "Figure_20_final_model_diagnostics")
 
-# ===========================================================================
-# Figure 21 — the four validation designs
-# ===========================================================================
 order = ["Grouped five-fold over cells", "Leave-one-cell-out (62 outer folds)",
          "Leave-one-genotype-out (31 outer folds)", "Leave-one-year-out (2 outer folds)"]
 short = ["Grouped\nfive-fold", "Unseen\ncell", "Unseen\ngenotype", "Unseen\nseason"]
@@ -177,9 +154,6 @@ fig.suptitle("Final model under four leakage-free validation designs",
 fig.tight_layout()
 save(fig, "Figure_21_final_designs")
 
-# ===========================================================================
-# Figure 22 — method families at both analysis levels, one protocol
-# ===========================================================================
 fam = pd.read_csv(os.path.join(TAB_DIR, "24_family_comparison.csv"), index_col=0)
 fam = fam.sort_values("Cell level (62 cells)", ascending=False)
 labels = [i.replace(" and ", " and\n").replace("Regularised linear", "Regularised\nlinear")
@@ -211,9 +185,6 @@ ax.set_title("Best performance by method family at two analysis levels\n"
 fig.tight_layout()
 save(fig, "Figure_22_method_families")
 
-# ===========================================================================
-# Figure 23 — the fitted coefficients
-# ===========================================================================
 co = T("23_final_coefficients.csv").copy()
 co["abs"] = co["Coefficient (standardised)"].abs()
 co = co.sort_values("Coefficient (standardised)")
@@ -237,9 +208,6 @@ ax.grid(axis="x", alpha=0.25, ls=":")
 fig.tight_layout()
 save(fig, "Figure_23_final_coefficients")
 
-# ===========================================================================
-# Figure 24 — the selection ladder
-# ===========================================================================
 lad = T("23_ladder.csv")
 lad = lad[lad["Design"].isin(["Leave-one-cell-out (62 outer folds)",
                               "Leave-one-genotype-out (31 outer folds)"])]
@@ -253,8 +221,6 @@ piv = piv.sort_values("n_candidates")
 LC = "Leave-one-cell-out (62 outer folds)"
 LG = "Leave-one-genotype-out (31 outer folds)"
 
-# the two 88/90-candidate spaces sit on top of each other on a logarithmic
-# axis, so the ladder is drawn against rank with the size shown in the label
 piv = piv.reset_index(drop=True)
 LAB = {1: "no selection\n(model fixed\nin advance)",
        8: "SPACE C\n8 candidates",
@@ -288,13 +254,8 @@ ax.legend(frameon=True, loc="lower left")
 fig.tight_layout()
 save(fig, "Figure_24_selection_ladder")
 
-# ===========================================================================
-# Figure 25 — strategies that were tried
-# ===========================================================================
 hy = T("19_hybrid.csv")
 hy = hy[(hy.Status == "ok") & (hy.Design == "LOCO")]
-# the reference is the best direct fit found anywhere in the script-18 sweep,
-# not merely the best of the ten base configurations that script 19 started from
 sl = T("18_sweep_shortlist.csv")
 sl = sl[(sl.Status == "ok") & (sl.Design == "LOCO leave-one-cell-out (62)")]
 direct = float(max(hy[hy.Strategy == "direct"]["pooled_R2"].max(),
@@ -350,9 +311,6 @@ ax.grid(axis="x", alpha=0.25, ls=":")
 fig.tight_layout()
 save(fig, "Figure_25_strategies")
 
-# ===========================================================================
-# Figure 26 — the exhaustive subset search
-# ===========================================================================
 subs = T("20_subsets.csv")
 subs = subs[subs.Status == "ok"]
 nested = J("20_subset_nested.json")
@@ -391,14 +349,6 @@ a.grid(axis="x", alpha=0.25, ls=":")
 fig.tight_layout()
 save(fig, "Figure_26_subset_search")
 
-# ===========================================================================
-# Figure 27 — prediction intervals
-# ===========================================================================
-# The half-width is the empirical quantile of the 62 leave-one-cell-out relative
-# residuals. The share of cells inside the band is computed from the same residuals
-# and is therefore fixed by the quantile level (49, 55 and 58 of 62), so it is not a
-# check of calibration: it is not printed in the title and the former calibration
-# panel is not drawn.
 cf = T("24_conformal.csv")
 order_i = np.argsort(pred_loco)
 p_sorted = pred_loco[order_i]
@@ -412,8 +362,6 @@ a.fill_between(rank, p_sorted * (1 - q90), p_sorted * (1 + q90), color=OI["sky"]
 a.plot(rank, p_sorted, color=OI["blue"], lw=2.0, label="Prediction")
 a.scatter(rank, y_sorted, s=34, c="black", zorder=3, label="Observed cell mean")
 a.set_xlabel("Genotype × year cells, ordered by prediction")
-# R2 (t25, V5-08): the index runs 1-62; the default ticks left the first and last cell
-# outside the labelled range.
 a.set_xticks([1, 10, 20, 30, 40, 50, len(p_sorted)])
 a.set_ylabel("Fresh plant weight (g)")
 a.set_title("Nominal 90 % prediction intervals from the leave-one-cell-out residuals")

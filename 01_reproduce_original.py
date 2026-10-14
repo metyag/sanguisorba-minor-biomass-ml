@@ -1,14 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-01 — Reproduce the originally submitted analysis EXACTLY, and quantify the
-     hierarchical structure of the dataset that the reviewers questioned.
-
-Outputs (results/tables/):
-  01_variance_decomposition.csv
-  01_repro_model_benchmark.csv        (original Table 1)
-  01_repro_univariate_r2.csv          (original Table 2)
-  01_repro_forward_selection.csv      (original Table 3)
-"""
 import sys, os, json
 import numpy as np
 import pandas as pd
@@ -30,11 +19,6 @@ print(f"n observations = {len(df)}, n features = {X.shape[1]}")
 print(f"Genotypes = {df[GENOTYPE].nunique()}, Years = {df[YEAR].nunique()}, "
       f"genotype x year cells = {len(np.unique(groups_cell))}")
 
-# ---------------------------------------------------------------
-# PART 1 — Variance decomposition: how much of the target variance lies
-#          BETWEEN genotype x year cells vs WITHIN cells?
-#          This is the quantitative answer to the leakage question.
-# ---------------------------------------------------------------
 print("\n" + "-" * 78)
 print("PART 1 — Hierarchical variance decomposition of fresh plant weight")
 print("-" * 78)
@@ -71,27 +55,17 @@ print(">>> a model could achieve by memorising nothing but the mean of each cell
 print(">>> Under random plant-level CV such a lookup is fully available to the model,")
 print(">>> because all 10 plants of every cell are split across training and test folds.")
 
-# Descriptive statistics by year
 print("\nTarget by year:")
 by_year = df.groupby(YEAR)[TARGET_EN].agg(["count", "mean", "std", "min", "max"])
 print(by_year.to_string())
 by_year.to_csv(os.path.join(TAB_DIR, "01_target_by_year.csv"))
 
-# Within-cell coefficient of variation
 cell_stats = df.groupby([YEAR, GENOTYPE])[TARGET_EN].agg(["count", "mean", "std"])
 cell_stats["CV%"] = 100 * cell_stats["std"] / cell_stats["mean"]
 print(f"\nWithin-cell CV%: mean={cell_stats['CV%'].mean():.2f}, "
       f"min={cell_stats['CV%'].min():.2f}, max={cell_stats['CV%'].max():.2f}")
 cell_stats.to_csv(os.path.join(TAB_DIR, "01_cell_statistics.csv"))
 
-# ---------------------------------------------------------------
-# PART 2 — Reproduce Table 1 (17-model benchmark, random 5-fold CV)
-#          NOTE: the original code let pandas decide column types. Because
-#          'yıl' and 'genotip' are stored as int64 in the Excel file, BOTH were
-#          treated as NUMERIC and standardised; the OneHotEncoder branch of the
-#          original ColumnTransformer never actually received any column.
-#          We reproduce that exactly here (genotype_categorical=False).
-# ---------------------------------------------------------------
 print("\n" + "-" * 78)
 print("PART 2 — Reproducing Table 1 (random 5-fold CV, genotype as integer code)")
 print("-" * 78)
@@ -122,9 +96,6 @@ best_reg = models[best_name]
 print(f"\nBest model reproduced: {best_name}  "
       f"(fold-wise R2 = {repro.loc[0, 'R2_mean']:.4f} +/- {repro.loc[0, 'R2_sd']:.4f})")
 
-# ---------------------------------------------------------------
-# PART 3 — Reproduce Table 2 (univariate R2 per feature)
-# ---------------------------------------------------------------
 print("\n" + "-" * 78)
 print("PART 3 — Reproducing Table 2 (univariate R2, ExtraTrees, random 5-fold CV)")
 print("-" * 78)
@@ -143,9 +114,6 @@ uni.insert(0, "Rank", range(1, len(uni) + 1))
 uni.to_csv(os.path.join(TAB_DIR, "01_repro_univariate_r2.csv"), index=False)
 print(uni.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
 
-# ---------------------------------------------------------------
-# PART 4 — Reproduce Table 3 (forward feature selection)
-# ---------------------------------------------------------------
 print("\n" + "-" * 78)
 print("PART 4 — Reproducing Table 3 (forward feature selection, random 5-fold CV)")
 print("-" * 78)

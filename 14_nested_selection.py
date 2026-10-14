@@ -1,30 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-14 — Nested model SELECTION: an unbiased headline number.
-
-Why this is necessary. Scripts 09, 12 and 13 searched a large space (34 estimators
-x 4 feature sets x 2 target transforms) and reported the best cell of that search.
-Reporting the maximum of a large search as if it were an out-of-sample estimate is
-itself a form of optimism: the winner is chosen partly because it suited the
-particular folds. A reviewer who has just objected to leakage will spot this
-immediately.
-
-The fix is to make the SELECTION part of the procedure being validated:
-
-    for each outer fold:
-        hold out the cells of that fold
-        run an inner grouped CV over the training cells only
-        choose the (model, feature set, target) that wins the inner CV
-        refit that choice on the training cells and predict the held-out cells
-
-The pooled out-of-fold R2 that results is an estimate of "what this whole model
-selection procedure achieves on cells it has never seen", which is the quantity
-that should be reported. It is normally a little lower than the best cell of the
-search, and that difference is exactly the selection optimism.
-
-Outputs (results/tables/):
-  14_nested_selection.csv, 14_selection_frequency.csv, 14_summary.json
-"""
 import sys, os, json, time, warnings
 import numpy as np
 import pandas as pd
@@ -72,10 +45,6 @@ FEATURE_SETS = {
     "D. Season + morphology + allometric (14)": [YEAR] + MORPH_FEATURES + ENG,
 }
 
-# ---------------------------------------------------------------------------
-# Candidate pool: the configurations that were competitive in script 13,
-# restricted to estimators that are cheap enough to refit inside a nested loop.
-# ---------------------------------------------------------------------------
 from sklearn.linear_model import HuberRegressor, Ridge, BayesianRidge, ARDRegression, ElasticNet
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.cross_decomposition import PLSRegression
@@ -140,7 +109,6 @@ class GroupOut:
 
 
 def inner_score(m_name, fs_name, tt, tr_idx, inner_groups, n_splits=5):
-    """Grouped k-fold R2 on the training cells only."""
     gk = GroupKFold(n_splits=min(n_splits, len(np.unique(inner_groups))))
     oof = np.full(len(tr_idx), np.nan)
     Xtr = CELL.iloc[tr_idx]
@@ -159,14 +127,13 @@ def inner_score(m_name, fs_name, tt, tr_idx, inner_groups, n_splits=5):
 
 
 def nested_selection(outer_splitter_groups, label):
-    """outer_splitter_groups: array defining the outer held-out unit."""
     go = GroupOut(outer_splitter_groups)
     all_idx = np.arange(len(CELL))
     oof = np.full(len(CELL), np.nan)
     picks = []
     t0 = time.time()
     for k, (tr, te) in enumerate(go.split(all_idx), 1):
-        inner_groups = g_cell[tr]          # inner folds always block on the cell
+        inner_groups = g_cell[tr]
         best, best_s = None, -np.inf
         for cfg in CANDIDATES:
             s = inner_score(cfg[0], cfg[1], cfg[2], tr, inner_groups)
