@@ -43,7 +43,7 @@ FAST = {"Linear", "Ridge", "RidgeCV", "Huber", "Huber (eps 1.1)", "Huber (eps 2.
 
 sweep_path = os.path.join(TAB_DIR, "18_sweep_cell.csv")
 if not os.path.exists(sweep_path):
-    raise SystemExit("run 18_arsenal_sweep.py first")
+    raise SystemExit("run 11_arsenal_sweep.py first")
 sw = pd.read_csv(sweep_path)
 sw = sw[(sw.Status == "ok") & (sw.Model.isin(FAST))].sort_values("pooled_R2",
                                                                 ascending=False)

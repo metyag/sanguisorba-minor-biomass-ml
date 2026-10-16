@@ -72,10 +72,10 @@ integ_json = {
 with open(os.path.join(TAB_DIR, "18_integrity.json"), "w", encoding="utf-8") as f:
     json.dump(integ_json, f, indent=2)
 
-print(f"\n  A genuinely independent sample of nine plants is monotone in every trait")
+print("\n  A genuinely independent sample of nine plants is monotone in every trait")
 print(f"  with probability 1/9! = {1/362880:.2e}; over {n_cells} cells that predicts")
 print(f"  {n_cells/362880:.5f} such cells by chance.")
-print(f"  Effect of record 10 on the cell mean, per cent:")
+print("  Effect of record 10 on the cell mean, per cent:")
 for t in ALL_TRAITS:
     print(f"    {t:32} {integ_json['mean_shift_in_cell_mean_from_record10_pct'][t]:6.2f}")
 

@@ -136,11 +136,8 @@ try:
     HAS_CAT = True
 except Exception:
     HAS_CAT = False
-try:
-    from pygam import LinearGAM, s
-    HAS_GAM = True
-except Exception:
-    HAS_GAM = False
+import importlib.util
+HAS_GAM = importlib.util.find_spec("pygam") is not None
 
 
 def pcr(k):

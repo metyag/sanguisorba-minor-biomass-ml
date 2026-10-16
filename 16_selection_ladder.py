@@ -142,7 +142,7 @@ for (m, v, t) in FIXED:
                             "Model": m})
 
 for path, label, ncol in (("21_summary.json", None, None),
-                          ("14_summary.json", "SPACE of script 14", 88)):
+                          ("14_summary.json", "SPACE of script 10", 88)):
     p = os.path.join(TAB_DIR, path)
     if not os.path.exists(p):
         continue

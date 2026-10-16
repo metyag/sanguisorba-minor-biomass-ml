@@ -147,11 +147,11 @@ if len(any_pair):
         if r.consecutive_pairs:
             tot = [v[2 * i] + v[2 * i + 1] for i in range(5)]
             print("        every consecutive pair sums to " + f"{tot[0]:g}"
-                  + f", exactly twice the mean")
+                  + ", exactly twice the mean")
         elif r.symmetric_pairs:
             tot = [v[i] + v[9 - i] for i in range(5)]
             print("        every symmetric pair sums to " + f"{tot[0]:g}"
-                  + f", exactly twice the mean")
+                  + ", exactly twice the mean")
 
 print("\n" + "=" * 100)
 print("C. WHAT IS THE TENTH RECORD?  (tested against the first nine)")

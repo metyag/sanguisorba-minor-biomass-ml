@@ -274,7 +274,7 @@ for _, cfg in okc.sort_values("pooled_R2", ascending=False).head(6).iterrows():
             row[f"{dname}_R2"] = met["pooled_R2"]
             row[f"{dname}_MAE"] = met["pooled_MAE"]
             row[f"{dname}_MAPE"] = met["pooled_MAPE"]
-        except Exception as e:
+        except Exception:
             row[f"{dname}_R2"] = np.nan
     conf.append(row)
     print(f"  {cfg['Model']:<24}{cfg['Feature set'][:30]:<32}{cfg['Target']:<4}"

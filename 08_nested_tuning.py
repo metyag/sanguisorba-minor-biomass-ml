@@ -56,7 +56,7 @@ FEATS = FEATURE_SETS[WIN_FS]
 print("=" * 100)
 print("10 — NESTED HYPER-PARAMETER TUNING")
 print("=" * 100)
-print(f"Winning configuration from script 09: {WIN_FS} | target = {WIN_TGT} | "
+print(f"Winning configuration from script 07: {WIN_FS} | target = {WIN_TGT} | "
       f"model = {BEST09.loc[0,'Model']} | R2 = {BEST09.loc[0,'pooled_R2']:.4f}")
 print(f"Tuning on that feature set ({len(FEATS)} predictors). Genotype is not among them.\n")
 
