@@ -184,7 +184,7 @@ ident.to_csv(os.path.join(TAB_DIR, "26_record10_identity.csv"), index=False)
 print(ident.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
 print("\n  No single arithmetic identity accounts for the tenth record; it is")
 print("  consistently larger than the other nine in the predictors and ordinary")
-print("  in the response, which is the pattern reported in Section 3.19.")
+print("  in the response, which is the pattern reported in the manuscript.")
 
 print("\n" + "=" * 100)
 print("D. BIOLOGICALLY IMPOSSIBLE OR IMPLAUSIBLE RECORDS")
