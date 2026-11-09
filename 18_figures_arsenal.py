@@ -67,6 +67,8 @@ met_loco, pred_loco = evaluate(POOL[MODEL], CELL, MORPH_FEATURES, "log", yc,
 met_logo, pred_logo = evaluate(POOL[MODEL], CELL, MORPH_FEATURES, "log", yc,
                                GroupOut(g_geno))
 season = CELL[YEAR].values
+YIL_ETIKETI = {1: "Year 1 (2022)", 2: "Year 2 (2023)"}
+assert set(np.unique(season).tolist()) == set(YIL_ETIKETI), np.unique(season)
 resid = yc - pred_loco
 
 fig, ax = plt.subplots(2, 2, figsize=(12.4, 10.2))
@@ -74,14 +76,14 @@ a = ax[0, 0]
 for s, col, mk in zip(np.unique(season), (OI["blue"], OI["orange"]), ("o", "s")):
     m = season == s
     a.scatter(yc[m], pred_loco[m], s=58, c=col, marker=mk, edgecolor="black",
-              linewidth=0.6, alpha=0.9, label=f"Season {s}")
+              linewidth=0.6, alpha=0.9, label=YIL_ETIKETI[s])
 lim = [min(yc.min(), pred_loco.min()) * 0.92, max(yc.max(), pred_loco.max()) * 1.05]
-a.plot(lim, lim, "k--", lw=1.2, label="1 : 1")
+a.plot(lim, lim, "k--", lw=1.2, label="y = x")
 a.set_xlim(lim)
 a.set_ylim(lim)
 a.set_xlabel("Observed cell mean fresh plant weight (g)")
-a.set_ylabel("Predicted (g)")
-a.set_title(f"(a) Unseen cell: R² = {met_loco['pooled_R2']:.3f}, "
+a.set_ylabel("Predicted cell mean fresh plant weight (g)")
+a.set_title(f"(a) Leave-one-cell-out: R² = {met_loco['pooled_R2']:.3f}, "
             f"MAE = {met_loco['pooled_MAE']:.2f} g")
 a.legend(frameon=True, loc="upper left")
 a.grid(alpha=0.25, ls=":")
@@ -90,13 +92,13 @@ a = ax[0, 1]
 for s, col, mk in zip(np.unique(season), (OI["blue"], OI["orange"]), ("o", "s")):
     m = season == s
     a.scatter(yc[m], pred_logo[m], s=58, c=col, marker=mk, edgecolor="black",
-              linewidth=0.6, alpha=0.9, label=f"Season {s}")
+              linewidth=0.6, alpha=0.9, label=YIL_ETIKETI[s])
 a.plot(lim, lim, "k--", lw=1.2)
 a.set_xlim(lim)
 a.set_ylim(lim)
 a.set_xlabel("Observed cell mean fresh plant weight (g)")
-a.set_ylabel("Predicted (g)")
-a.set_title(f"(b) Unseen genotype: R² = {met_logo['pooled_R2']:.3f}, "
+a.set_ylabel("Predicted cell mean fresh plant weight (g)")
+a.set_title(f"(b) Leave-one-genotype-out: R² = {met_logo['pooled_R2']:.3f}, "
             f"MAE = {met_logo['pooled_MAE']:.2f} g")
 a.legend(frameon=True, loc="upper left")
 a.grid(alpha=0.25, ls=":")
@@ -105,23 +107,23 @@ a = ax[1, 0]
 a.scatter(pred_loco, resid, s=58, c=OI["green"], edgecolor="black", linewidth=0.6,
           alpha=0.9)
 a.axhline(0, color="black", lw=1.2)
-a.set_xlabel("Predicted (g)")
+a.set_xlabel("Predicted cell mean fresh plant weight (g)")
 a.set_ylabel("Residual, observed − predicted (g)")
-a.set_title("(c) Residuals against the prediction")
+a.set_title("(c) Residuals versus prediction")
 a.grid(alpha=0.25, ls=":")
 
 a = ax[1, 1]
 a.hist(resid, bins=16, color=OI["sky"], edgecolor="black", linewidth=0.7)
 a.axvline(0, color="black", lw=1.4)
 a.axvline(float(np.mean(resid)), color=OI["vermilion"], lw=1.8, ls="--",
-          label=f"mean = {np.mean(resid):+.2f} g")
+          label=f"Mean residual = {np.mean(resid):+.2f} g")
 a.set_xlabel("Residual (g)")
 a.set_ylabel("Number of cells")
 a.set_title("(d) Distribution of the residuals")
 a.legend(frameon=True)
 a.grid(axis="y", alpha=0.25, ls=":")
 
-fig.suptitle(f"Final model — {MODEL} regression of log fresh plant weight on the eight "
+fig.suptitle(f"Final model: {MODEL} regression of log fresh plant weight on the eight "
              f"measured trait means", fontsize=13.5, fontweight="bold", y=0.995)
 fig.tight_layout()
 save(fig, "Figure_20_final_model_diagnostics")
@@ -358,13 +360,13 @@ rank = np.arange(1, len(p_sorted) + 1)
 
 fig, a = plt.subplots(figsize=(9.8, 5.8))
 a.fill_between(rank, p_sorted * (1 - q90), p_sorted * (1 + q90), color=OI["sky"],
-               alpha=0.45, label=f"Nominal 90 % interval (prediction ± {100 * q90:.2f} %)")
+               alpha=0.45, label=f"Nominal 90% interval (prediction ± {100 * q90:.2f}%)")
 a.plot(rank, p_sorted, color=OI["blue"], lw=2.0, label="Prediction")
 a.scatter(rank, y_sorted, s=34, c="black", zorder=3, label="Observed cell mean")
 a.set_xlabel("Genotype × year cells, ordered by prediction")
 a.set_xticks([1, 10, 20, 30, 40, 50, len(p_sorted)])
 a.set_ylabel("Fresh plant weight (g)")
-a.set_title("Nominal 90 % prediction intervals from the leave-one-cell-out residuals")
+a.set_title("Nominal 90% prediction intervals from the leave-one-cell-out residuals")
 a.legend(frameon=True, loc="upper left", fontsize=10)
 a.grid(alpha=0.25, ls=":")
 fig.tight_layout()

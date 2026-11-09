@@ -87,10 +87,13 @@ save(fig, "Figure_12b_partial_dependence_full")
 print("\nLearning curves", flush=True)
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 configs = [(KFold(n_splits=5, shuffle=True, random_state=SEED), None, FULL_FEATURES,
-            "(a) Full feature set, random 5-fold CV", OI["vermillion"]),
+            "(a) Full feature set, random 5-fold", OI["vermillion"]),
            (GroupKFold(n_splits=5), groups_cell, MORPH_FEATURES,
-            "(b) Morphological traits only, GroupKFold by cell", OI["blue"])]
+            "(b) Morphological traits only, GroupKFold (genotype × year cell)", OI["blue"])]
 lc_out = {}
+LC_ANAHTAR = {"(a) Full feature set, random 5-fold": "(a) Full feature set, random 5-fold CV",
+              "(b) Morphological traits only, GroupKFold (genotype × year cell)":
+                  "(b) Morphological traits only, GroupKFold by cell"}
 for ax, (spl, grp, feats, title, c) in zip(axes, configs):
     p = make_pipeline(BEST, feats, genotype_categorical=True)
     sizes, tr, te = learning_curve(p, df[feats], y, groups=grp, cv=spl,
@@ -111,7 +114,7 @@ for ax, (spl, grp, feats, title, c) in zip(axes, configs):
     ax.set_title(title)
     ax.legend(loc="lower right")
     ax.grid(alpha=0.25, linestyle=":")
-    lc_out[title] = {"train_sizes": sizes.tolist(),
+    lc_out[LC_ANAHTAR[title]] = {"train_sizes": sizes.tolist(),
                      "train_r2_mean": tr.mean(1).tolist(),
                      "val_r2_mean": te.mean(1).tolist(),
                      "val_r2_sd": te.std(1).tolist()}

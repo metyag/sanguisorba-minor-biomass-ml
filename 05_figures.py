@@ -30,7 +30,7 @@ plt.rcParams.update({
 
 OI = {"blue": "#0072B2", "orange": "#E69F00", "green": "#009E73", "vermillion": "#D55E00",
       "sky": "#56B4E9", "yellow": "#F0E442", "purple": "#CC79A7", "grey": "#999999"}
-DESIGN_COLORS = {"A. Random 5-fold": OI["vermillion"], "B. GroupKFold (cell)": OI["blue"],
+DESIGN_COLORS = {"A. Random 5-fold": OI["vermillion"], "B. GroupKFold (genotype × year cell)": OI["blue"],
                  "C. Leave-one-genotype-out": OI["green"], "D. Leave-one-year-out": OI["purple"]}
 
 
@@ -86,7 +86,7 @@ save(fig, "Figure_02_dataset_structure")
 print("\nFigure: model performance across validation designs")
 vm = pd.read_csv(os.path.join(TAB_DIR, "02_validation_matrix_full.csv"))
 vm = vm[vm["Status"] == "ok"]
-code2lab = {"random": "A. Random 5-fold", "groupcell": "B. GroupKFold (cell)",
+code2lab = {"random": "A. Random 5-fold", "groupcell": "B. GroupKFold (genotype × year cell)",
             "logo": "C. Leave-one-genotype-out", "loyo": "D. Leave-one-year-out"}
 vm["Design"] = vm["design_code"].map(code2lab)
 
@@ -94,7 +94,7 @@ for fs_key, fs_tag, fs_title in [
         ("FULL", "full", "Full feature set (year + genotype + 8 morphological traits)"),
         ("MORPH-ONLY", "morph", "Morphological traits only (8 traits)")]:
     sub = vm[vm["Feature set"].str.startswith(fs_key)]
-    order = (sub[sub.Design == "B. GroupKFold (cell)"]
+    order = (sub[sub.Design == "B. GroupKFold (genotype × year cell)"]
              .sort_values("pooled_R2", ascending=False)["Model"].tolist())
     fig, ax = plt.subplots(figsize=(14, 6.6))
     w = 0.2
@@ -137,7 +137,7 @@ for ax, (m, s, lab, c) in zip(axes.ravel(), specs):
     ax.set_title(lab.split(" (")[0])
     ax.grid(axis="y", alpha=0.25, linestyle=":")
     ax.axhline(0, color="black", lw=0.9)
-fig.suptitle("Model comparison — morphological traits only, GroupKFold by genotype x year cell",
+fig.suptitle("Model comparison: morphological traits only, GroupKFold (genotype × year cell)",
              fontsize=14, fontweight="bold", y=1.00)
 fig.tight_layout()
 save(fig, "Figure_04_four_metrics_morph_grouped")
@@ -163,7 +163,7 @@ ax.barh(ypos - h / 2, piv["B_groupcell"], h, xerr=_ub,
         color=OI["blue"], edgecolor="black", capsize=3, label="B. GroupKFold (genotype × year cell)")
 ax.axvline(0, color="black", lw=1.1)
 ax.set_yticks(ypos); ax.set_yticklabels(piv.index)
-ax.set_xlabel("R$^2$ when the feature is used alone (mean $\\pm$ SD)")
+ax.set_xlabel("R$^2$ when the feature is used alone (fold-wise mean $\\pm$ SD)")
 ax.set_title("Individual predictive contribution of each variable")
 ax.legend(loc="lower left", framealpha=1.0)
 ax.grid(axis="x", alpha=0.25, linestyle=":")
@@ -181,13 +181,13 @@ def _gosterge_alta(fig, axes):
 print("\nFigure: forward feature selection")
 fwd = pd.read_csv(os.path.join(TAB_DIR, "03_forward_selection.csv"))
 fig, axes = plt.subplots(1, 2, figsize=(16, 6.6), sharey=False)
-panels = [("A_random", "FULL", "(a) Random 5-fold CV, full feature set", OI["vermillion"]),
-          ("B_groupcell", "FULL", "(b) GroupKFold by genotype × year cell, full feature set", OI["blue"])]
+panels = [("A_random", "FULL", "(a) Random 5-fold, full feature set", OI["vermillion"]),
+          ("B_groupcell", "FULL", "(b) GroupKFold (genotype × year cell), full feature set", OI["blue"])]
 for ax, (d, s, title, c) in zip(axes, panels):
     sub = fwd[(fwd.Design == d) & (fwd["Feature set"] == s)].sort_values("Step")
     ax.errorbar(sub["Step"], sub["Cumulative R2_mean"], yerr=sub["Cumulative R2_sd"],
                 fmt="o-", color=c, ecolor="black", lw=2.2, ms=8, capsize=4,
-                markeredgecolor="black", label="Cumulative CV R$^2$")
+                markeredgecolor="black", label="Cumulative R$^2$")
     mx = sub["Max R2"].iloc[0]; thr = sub["95% threshold"].iloc[0]
     mk = int(sub["Minimum feature count"].iloc[0])
     ax.axhline(thr, color=OI["green"], ls="--", lw=1.6,
@@ -211,13 +211,13 @@ _gosterge_alta(fig, axes)
 save(fig, "Figure_06_forward_selection")
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6.6))
-panels = [("A_random", "MORPH", "(a) Random 5-fold CV, morphological traits only", OI["vermillion"]),
-          ("B_groupcell", "MORPH", "(b) GroupKFold by cell, morphological traits only", OI["blue"])]
+panels = [("A_random", "MORPH", "(a) Random 5-fold, morphological traits only", OI["vermillion"]),
+          ("B_groupcell", "MORPH", "(b) GroupKFold (genotype × year cell), morphological traits only", OI["blue"])]
 for ax, (d, s, title, c) in zip(axes, panels):
     sub = fwd[(fwd.Design == d) & (fwd["Feature set"] == s)].sort_values("Step")
     ax.errorbar(sub["Step"], sub["Cumulative R2_mean"], yerr=sub["Cumulative R2_sd"],
                 fmt="o-", color=c, ecolor="black", lw=2.2, ms=8, capsize=4,
-                markeredgecolor="black", label="Cumulative CV R$^2$")
+                markeredgecolor="black", label="Cumulative R$^2$")
     thr = sub["95% threshold"].iloc[0]; mk = int(sub["Minimum feature count"].iloc[0])
     ax.axhline(thr, color=OI["green"], ls="--", lw=1.6, label=f"95% of maximum = {thr:.3f}")
     ax.axvline(mk, color=OI["purple"], ls=":", lw=1.8, label=f"Minimum feature count = {mk}")
@@ -283,9 +283,9 @@ save(fig, "Figure_09_correlation_matrix")
 print("\nFigure: agreement diagnostics")
 diag = json.load(open(os.path.join(TAB_DIR, "03_diagnostics.json"), encoding="utf-8"))
 for tag, title in [("B_groupcell_MORPH",
-                    "Morphological traits only — GroupKFold by genotype × year cell"),
+                    "Morphological traits only, GroupKFold (genotype × year cell)"),
                    ("A_random_FULL",
-                    "Full feature set — random 5-fold CV (as originally submitted)")]:
+                    "Full feature set, random 5-fold (as originally submitted)")]:
     oof = pd.read_csv(os.path.join(TAB_DIR, f"03_oof_predictions_{tag}.csv"))
     d = diag[tag]
     fig, axes = plt.subplots(1, 3, figsize=(18, 5.6))
@@ -295,15 +295,15 @@ for tag, title in [("B_groupcell_MORPH",
                     color=OI["blue"], edgecolor="black", linewidth=0.3)
     axes[0].plot([mn, mx], [mn, mx], "--", color=OI["vermillion"], lw=2, label="y = x")
     axes[0].set_xlabel("Measured fresh plant weight (g)")
-    axes[0].set_ylabel("Out-of-fold prediction (g)")
-    axes[0].set_title(f"(a) Predicted vs measured\nR$^2$ = {d['R2']:.3f}, RMSE = {d['RMSE']:.2f} g")
+    axes[0].set_ylabel("Predicted fresh plant weight (g)")
+    axes[0].set_title(f"(a) Predicted versus measured\nR$^2$ = {d['R2']:.3f}, RMSE = {d['RMSE']:.2f} g")
     axes[0].legend(); axes[0].grid(alpha=0.25, linestyle=":")
 
     axes[1].scatter(oof["predicted_oof"], oof["residual"], s=26, alpha=0.6,
                     color=OI["green"], edgecolor="black", linewidth=0.3)
     axes[1].axhline(0, color=OI["vermillion"], ls="--", lw=2)
     axes[1].set_xlabel("Predicted fresh plant weight (g)")
-    axes[1].set_ylabel("Residual (measured - predicted, g)")
+    axes[1].set_ylabel("Residual, measured − predicted (g)")
     axes[1].set_title("(b) Residuals versus prediction")
     axes[1].grid(alpha=0.25, linestyle=":")
 
@@ -338,7 +338,7 @@ try:
     fig = plt.figure(figsize=(10, 7))
     shap.summary_plot(sv, Xp, feature_names=MORPH_FEATURES, show=False, max_display=10,
                       plot_size=None)
-    plt.title("SHAP summary — ExtraTrees on morphological traits only",
+    plt.title("SHAP summary: ExtraTrees, morphological traits only",
               fontsize=13, fontweight="bold", color="black")
     plt.xlabel("SHAP value (impact on predicted fresh plant weight, g)", fontsize=12)
     plt.tight_layout()
@@ -366,7 +366,7 @@ try:
     fig = plt.figure(figsize=(10, 7))
     shap.summary_plot(svf, Xf, feature_names=FULL_FEATURES, show=False, max_display=10,
                       plot_size=None)
-    plt.title("SHAP summary — ExtraTrees on the full feature set",
+    plt.title("SHAP summary: ExtraTrees, full feature set",
               fontsize=13, fontweight="bold", color="black")
     plt.xlabel("SHAP value (impact on predicted fresh plant weight, g)", fontsize=12)
     plt.tight_layout()
@@ -420,10 +420,13 @@ except Exception as e:
 print("\nFigure: learning curves")
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 configs = [(KFold(n_splits=5, shuffle=True, random_state=SEED), None, FULL_FEATURES,
-            "(a) Full feature set, random 5-fold CV", OI["purple"]),
+            "(a) Full feature set, random 5-fold", OI["purple"]),
            (GroupKFold(n_splits=5), groups_cell, MORPH_FEATURES,
-            "(b) Morphological traits only, GroupKFold by cell", OI["blue"])]
+            "(b) Morphological traits only, GroupKFold (genotype × year cell)", OI["blue"])]
 lc_out = {}
+LC_ANAHTAR = {"(a) Full feature set, random 5-fold": "(a) Full feature set, random 5-fold CV",
+              "(b) Morphological traits only, GroupKFold (genotype × year cell)":
+                  "(b) Morphological traits only, GroupKFold by cell"}
 for ax, (spl, grp, feats, title, c) in zip(axes, configs):
     pipe = make_pipeline(BEST, feats, genotype_categorical=True)
     sizes, tr, te = learning_curve(pipe, df[feats], y, groups=grp, cv=spl,
@@ -441,7 +444,7 @@ for ax, (spl, grp, feats, title, c) in zip(axes, configs):
     ax.axhline(0, color="black", lw=0.9)
     ax.set_xlabel("Number of training samples"); ax.set_ylabel("R$^2$")
     ax.set_title(title); ax.legend(loc="lower right"); ax.grid(alpha=0.25, linestyle=":")
-    lc_out[title] = {"train_sizes": sizes.tolist(),
+    lc_out[LC_ANAHTAR[title]] = {"train_sizes": sizes.tolist(),
                      "train_r2_mean": tr.mean(1).tolist(),
                      "val_r2_mean": te.mean(1).tolist(),
                      "val_r2_sd": te.std(1).tolist()}
