@@ -77,7 +77,7 @@ for cell, sub in df.groupby("Cell"):
         v10 = sub[t].values.astype(float)
         v9 = v10[:9]
         sd9 = v9.std(ddof=1)
-        z10 = (v10[9] - v9.mean()) / sd9 if sd9 > 0 else np.nan
+        z10 = (v10[9] - v9.mean()) / sd9 if np.ptp(v9) > 0 else np.nan
         lat, lat_step, lat_gaps = sig_lattice(v10)
         rows.append({
             "lattice": lat, "lattice_step": lat_step, "lattice_gaps": lat_gaps,

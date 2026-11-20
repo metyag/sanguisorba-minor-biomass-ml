@@ -39,7 +39,7 @@ for t in ALL_TRAITS:
     for _, sub in PLANT.groupby([YEAR, GENOTYPE]):
         v = sub.sort_values("_pos")[t].values
         sd = v[:9].std(ddof=1)
-        if sd > 0:
+        if np.ptp(v[:9]) > 0:
             z.append((v[9] - v[:9].mean()) / sd)
         if v[8] > 0:
             ratio.append(v[9] / v[8])
